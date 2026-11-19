@@ -1,0 +1,428 @@
+/* BWRX-300 Component Detail Window Stylesheet */
+:root {
+  --ground: #f4f7f8;
+  --panel: #f1f5f7;
+  --panel2: #e4ebee;
+  --line: #b9c8cd;
+  --ink: #0b1417;
+  --dim: #43575e;
+  --amber-ink: #8a5600;
+  --soft: #dbe4e8;
+  --water: #3f9be0;
+  --steam: #bfd3da;
+  --amber: #f0b03a;
+  --red: #ff5a4a;
+  --green: #4fd08e;
+  --hot: #ff8a3d;
+  --f-disp: 'Barlow Condensed', 'Arial Narrow', sans-serif;
+  --f-body: 'Barlow', system-ui, sans-serif;
+  --f-mono: 'IBM Plex Mono', ui-monospace, Menlo, monospace;
+  --page: #ffffff;
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+html, body {
+  height: 100vh;
+  margin: 0;
+  padding: 0;
+  background: var(--page);
+  color: var(--ink);
+  font-family: var(--f-body);
+  font-size: clamp(12px, 1.1vw, 15px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.detail-app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  padding: clamp(5px, 0.8vh, 10px) clamp(8px, 1vw, 14px);
+  gap: clamp(5px, 0.8vh, 10px);
+}
+
+/* Detail Navigation Bar */
+.detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: clamp(6px, 1vw, 12px);
+  padding: clamp(4px, 0.5vh, 6px) clamp(8px, 1vw, 12px);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  flex: none;
+}
+
+/* Precision Telemetry Banner (Aligned with Notes for Software Design Specs) */
+.telemetry-strip {
+  display: flex;
+  align-items: center;
+  gap: clamp(4px, 0.6vw, 8px);
+  padding: clamp(4px, 0.5vh, 6px) clamp(6px, 0.8vw, 10px);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  overflow-x: auto;
+  flex: none;
+}
+.metric-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: clamp(3px, 0.4vh, 5px) clamp(6px, 0.8vw, 10px);
+  min-width: clamp(100px, 10vw, 130px);
+  flex: 1;
+}
+.metric-chip.highlight {
+  border-color: #d97706;
+  background: #fffdf5;
+}
+.chip-label {
+  font: 600 clamp(8px, 0.8vw, 9.5px) var(--f-mono);
+  letter-spacing: .08em;
+  color: var(--dim);
+  text-transform: uppercase;
+}
+.chip-val {
+  font: 700 clamp(11px, 1.1vw, 13px) var(--f-mono);
+  color: var(--ink);
+  letter-spacing: .02em;
+  white-space: nowrap;
+}
+.metric-chip.highlight .chip-val {
+  color: #b45309;
+}
+
+.nav-buttons {
+  display: flex;
+  gap: clamp(3px, 0.4vw, 5px);
+  align-items: center;
+}
+
+.nav-btn {
+  font: 600 clamp(10px, 1vw, 12px) var(--f-disp);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  padding: clamp(3px, 0.4vh, 5px) clamp(6px, 0.8vw, 10px);
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--dim);
+  border-radius: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: clamp(3px, 0.4vw, 5px);
+  transition: all .15s;
+}
+
+.nav-btn:hover {
+  background: #eaf1f4;
+  color: var(--ink);
+}
+
+.nav-btn.active {
+  background: var(--amber);
+  color: #1e1300;
+  border-color: var(--amber);
+  font-weight: 700;
+}
+
+.header-right-actions {
+  display: flex;
+  align-items: center;
+  gap: clamp(4px, 0.6vw, 8px);
+}
+
+.screen-action-btn {
+  font: 600 clamp(9.5px, 0.95vw, 11px) var(--f-disp);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  padding: clamp(3px, 0.35vh, 4px) clamp(5px, 0.6vw, 8px);
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--dim);
+  border-radius: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all .15s;
+}
+
+.screen-action-btn:hover {
+  background: #eaf1f4;
+  color: var(--ink);
+  border-color: var(--dim);
+}
+
+.sync-status {
+  display: flex;
+  align-items: center;
+  gap: clamp(4px, 0.6vw, 8px);
+  font: 500 clamp(9px, 0.9vw, 11px) var(--f-mono);
+  background: #fff;
+  border: 1px solid var(--line);
+  padding: clamp(2px, 0.25vh, 3px) clamp(5px, 0.6vw, 8px);
+  border-radius: 3px;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 6px var(--green);
+}
+
+.status-dot.disconnected {
+  background: #c0392b;
+  box-shadow: 0 0 6px #c0392b;
+}
+
+/* Main Display Container */
+.detail-content {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.view-container {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.vbar {
+  display: flex;
+  align-items: center;
+  gap: clamp(6px, 0.8vw, 10px);
+  padding: clamp(4px, 0.5vh, 6px) clamp(8px, 1vw, 12px);
+  background: #e9eff2;
+  border-bottom: 1px solid var(--line);
+  flex: none;
+}
+
+.vbar .lab {
+  font: 600 clamp(10px, 1vw, 12px) var(--f-disp);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.visual-area {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  background: #f7fafb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.visual-area svg, .visual-area canvas {
+  width: 100%;
+  height: 100%;
+  max-width: 1080px;
+  display: block;
+}
+
+/* Steps and Telemetry Cards */
+.tsteps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(clamp(160px, 18vw, 210px), 1fr));
+  gap: clamp(4px, 0.5vh, 6px) clamp(8px, 1vw, 12px);
+  padding: clamp(5px, 0.6vh, 8px) clamp(8px, 1vw, 12px);
+  border-top: 1px solid var(--line);
+  background: #fff;
+  flex: none;
+  max-height: 25vh;
+  overflow-y: auto;
+}
+
+.tsteps div {
+  display: grid;
+  gap: 2px;
+  font-size: clamp(10px, 0.95vw, 12px);
+  color: var(--dim);
+  border-left: 2px solid #e0eaee;
+  padding-left: clamp(4px, 0.5vw, 6px);
+}
+
+.tsteps b {
+  font: 600 clamp(11px, 1.1vw, 13px) var(--f-disp);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+
+.tsteps span.v {
+  font: 600 clamp(10px, 0.95vw, 11.5px) var(--f-mono);
+  color: var(--amber-ink);
+}
+
+/* RPV Cutaway Specifics */
+.rcards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(clamp(170px, 18vw, 220px), 1fr));
+  gap: clamp(4px, 0.5vh, 6px);
+  padding: clamp(5px, 0.6vh, 8px) clamp(6px, 0.8vw, 10px);
+  border-top: 1px solid var(--line);
+  background: #fff;
+  flex: none;
+  max-height: 25vh;
+  overflow-y: auto;
+}
+
+.rcard {
+  display: grid;
+  gap: 2px;
+  text-align: left;
+  font: inherit;
+  font-size: clamp(10px, 0.95vw, 12px);
+  color: var(--dim);
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: clamp(4px, 0.5vh, 6px) clamp(5px, 0.6vw, 8px);
+  cursor: pointer;
+  min-width: 0;
+  align-content: start;
+  transition: all .15s;
+}
+
+.rcard:hover {
+  border-color: var(--dim);
+  background: #f7fafb;
+}
+
+.rcard b {
+  font: 600 clamp(11px, 1.1vw, 13px) var(--f-disp);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+
+.rcard .v {
+  font: 600 clamp(9.5px, 0.9vw, 11px) var(--f-mono);
+  color: var(--amber-ink);
+}
+
+.rcard[aria-pressed=true] {
+  border-color: var(--amber);
+  box-shadow: 0 0 0 2px rgba(240, 176, 58, 0.35);
+  background: #fffbf5;
+}
+
+.p3bar {
+  display: flex;
+  gap: clamp(3px, 0.3vw, 4px);
+  flex-wrap: wrap;
+  align-items: center;
+  padding: clamp(3px, 0.4vh, 4px) clamp(6px, 0.8vw, 10px);
+  background: #e9eff2;
+  border-bottom: 1px solid var(--line);
+}
+
+.act, .opt {
+  font: 600 clamp(9.5px, 0.9vw, 11px) var(--f-disp);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  padding: clamp(3px, 0.3vh, 4px) clamp(5px, 0.6vw, 8px);
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--dim);
+  cursor: pointer;
+  border-radius: 3px;
+  min-height: clamp(22px, 2.5vh, 26px);
+}
+
+.act:hover, .opt:hover {
+  border-color: var(--dim);
+  color: var(--ink);
+}
+
+.opt[aria-pressed=true] {
+  background: var(--amber);
+  color: #1e1300;
+  border-color: var(--amber);
+  font-weight: 700;
+}
+
+/* SVG Flow lines & animations */
+.pipe { fill: none; stroke: #3a525b; stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; }
+.eq { fill: #16262d; stroke: #6a858e; stroke-width: 2; }
+.txt { font: 500 11px var(--f-mono); fill: var(--dim); }
+.tag { font: 600 13px var(--f-mono); fill: var(--ink); }
+.in { fill: #e8f1f4 !important; }
+.big { font: 700 15px var(--f-mono); fill: var(--ink); }
+.valve { fill: #2a3a40; stroke: #5b7983; stroke-width: 2; }
+.pool { fill: #d3e7f5; stroke: #7fb0d4; }
+
+.flow {
+  fill: none;
+  stroke-linecap: round;
+  stroke-dasharray: 6 8;
+  animation: dash var(--dur, 1s) linear infinite;
+}
+@keyframes dash {
+  to { stroke-dashoffset: -14; }
+}
+
+.drip {
+  animation: drip 1.3s ease-in infinite;
+  opacity: 0;
+}
+@keyframes drip {
+  0% { transform: translateY(0); opacity: 0; }
+  15% { opacity: 1; }
+  100% { transform: translateY(30px); opacity: 0; }
+}
+
+.puff {
+  fill: #fff;
+  stroke: #9db2ba;
+  stroke-width: 1;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: puff 2.4s ease-out infinite;
+  opacity: 0;
+}
+@keyframes puff {
+  0% { transform: translateY(0) scale(.5); opacity: 0; }
+  15% { opacity: .9; }
+  100% { transform: translateY(-54px) scale(1.8); opacity: 0; }
+}
+
+.bub {
+  fill: #fff;
+  stroke: #4f8fbf;
+  stroke-width: 1;
+  animation: bub 1.8s ease-in infinite;
+  opacity: 0;
+}
+@keyframes bub {
+  0% { transform: translateY(0); opacity: 0; }
+  15% { opacity: .9; }
+  100% { transform: translateY(-110px); opacity: 0; }
+}
