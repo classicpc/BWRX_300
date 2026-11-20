@@ -86,6 +86,9 @@
       S.qt = C.MWT;
       S.rpm = 1500;
       S.vac = 5.2;
+      S.icOpen = true; // Active in preview so animations are immediately alive!
+      S.qic = 38.0;
+      icE = 125000;
       setConnected(false);
     }
   }
@@ -185,13 +188,15 @@
   const viewConfigs = {
     rpv: {
       cvId: 'rc',
+      svgId: 'rsvg',
       cardsId: 'rcards',
       cardsData: V.RCARDS,
       presets: V.RPRE,
       presetBtns: [['rWhole', 'whole'], ['rCore', 'core'], ['rTop', 'top'], ['rBot', 'bot']],
-      btnL: 'rL', btnR: 'rR', btnCut: 'rCut', btnLab: 'rLab',
+      btnL: 'rL', btnR: 'rR', btnCut: 'rCut', btnLab: 'rLab', btnSchem: 'rSchem',
       cam: { yaw: -0.5, pitch: 0.35, cy: 7.6, span: 27.8, tcy: 7.6, tspan: 27.8, sel: null, labels: true, cut: true, isSchem: false },
-      draw3D: (ctx, W, H, dpr, t, cam) => V.p3Rpv(ctx, W, H, dpr, t, S, C, (window.BWR_3D && window.BWR_3D.coreColor), cam, p3still)
+      draw3D: (ctx, W, H, dpr, t, cam) => V.p3Rpv(ctx, W, H, dpr, t, S, C, (window.BWR_3D && window.BWR_3D.coreColor), cam, p3still),
+      draw2D: () => V.renderRpv(S, document)
     },
     turb: {
       cvId: 'tc',
@@ -224,7 +229,7 @@
       cardsData: V.ICARDS,
       presets: V.IPRE,
       presetBtns: [['iWhole', 'whole'], ['iPool', 'pool'], ['iTubes', 'tubes'], ['iValves', 'valves']],
-      btnL: 'iL', btnR: 'iR', btnCut: 'iCut', btnLab: 'iLab', btnSchem: 'iSchem',
+      btnL: 'iL', btnR: 'iR', btnCut: 'iCut', btnLab: 'iLab', btnSchem: 'iSchem', btnAct: 'iAct',
       cam: { yaw: -0.55, pitch: 0.35, cy: 24.0, span: 22.0, tcy: 24.0, tspan: 22.0, sel: null, labels: true, cut: true, isSchem: false },
       draw3D: (ctx, W, H, dpr, t, cam) => V.p3IC(ctx, W, H, dpr, t, S, C, cam, p3still, icE),
       draw2D: () => V.renderIC(S, icE, document)
@@ -324,6 +329,19 @@
         });
       }
     }
+
+    if (cfg.btnAct) {
+      const btnAct = document.getElementById(cfg.btnAct);
+      if (btnAct) {
+        btnAct.addEventListener('click', () => {
+          if (!S) return;
+          S.icOpen = !S.icOpen;
+          if (S.icOpen && (!S.qic || S.qic < 10)) S.qic = 38.0;
+          btnAct.setAttribute('aria-pressed', S.icOpen ? 'true' : 'false');
+          btnAct.textContent = S.icOpen ? 'IC Active (Flow On)' : 'IC Standby';
+        });
+      }
+    }
   }
 
   function drawView(key) {
@@ -399,6 +417,19 @@
       } else {
         mDynLab.textContent = 'RODS & BORON';
         mDynVal.textContent = `Rods ${(S.rod * 100).toFixed(0)}% · Boron ${(S.boron * 100).toFixed(0)}%`;
+      }
+    }
+
+    if (cfg.btnAct) {
+      const btnAct = document.getElementById(cfg.btnAct);
+      if (btnAct) {
+        btnAct.addEventListener('click', () => {
+          if (!S) return;
+          S.icOpen = !S.icOpen;
+          if (S.icOpen && (!S.qic || S.qic < 10)) S.qic = 38.0;
+          btnAct.setAttribute('aria-pressed', S.icOpen ? 'true' : 'false');
+          btnAct.textContent = S.icOpen ? 'IC Active (Flow On)' : 'IC Standby';
+        });
       }
     }
   }

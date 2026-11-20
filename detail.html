@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/detail.css?v=5">
+  <link rel="stylesheet" href="css/detail.css?v=6">
 </head>
 <body>
   <!-- Common SVG Gradients & Definitions -->
@@ -97,10 +97,142 @@
             <button class="act" type="button" id="rBot">Drives below</button>
             <button class="opt" type="button" id="rCut" aria-pressed="true">Cutaway</button>
             <button class="opt" type="button" id="rLab" aria-pressed="true">Labels</button>
+            <button class="opt" type="button" id="rSchem">Schematic</button>
           </div>
         </div>
         <div class="visual-area">
           <canvas id="rc" tabindex="0" role="img" aria-label="Rotatable cutaway 3D schematic of the reactor vessel"></canvas>
+          <svg id="rsvg" viewBox="0 0 700 484" role="img" aria-label="Live reactor vessel schematic" style="display:none">
+            <!-- Background grid / reactor cavity walls -->
+            <rect x="0" y="0" width="700" height="484" fill="#f7fafb"/>
+            <line x1="0" x2="700" y1="410" y2="410" stroke="#9fb3ba" stroke-width="2" stroke-dasharray="2 6"/>
+            <text class="txt" x="12" y="404">UNDER-VESSEL CAVITY</text>
+            <text class="txt" x="12" y="424">FMCRD &amp; HCU LEVEL</text>
+
+            <!-- Pipes connected to vessel -->
+            <path class="pipe" d="M480,72 H680"/>
+            <text class="txt" x="680" y="60" text-anchor="end">MAIN STEAM TO TURBINE (7 MPa)</text>
+            <path class="pipe" d="M20,165 H220"/>
+            <text class="txt" x="20" y="152">FEEDWATER FROM HEATERS</text>
+            <path class="pipe" d="M680,365 H470"/>
+            <text class="txt" x="680" y="355" text-anchor="end">BORON INJECTION (SLC)</text>
+            <path class="pipe" d="M350,42 V20 H20 V210 H220"/>
+            <text class="txt" x="24" y="32">TO ISOLATION CONDENSER</text>
+            <path class="pipe" d="M120,440 H350 V415"/>
+
+            <!-- RPV Outer Shell & Flange -->
+            <path d="M210,95 C210,50 270,42 350,42 C430,42 490,50 490,95 V380 C490,415 425,426 350,426 C275,426 210,415 210,380 Z" fill="url(#gSteel)" stroke="#6a858e" stroke-width="3"/>
+            <path d="M220,98 C220,60 275,52 350,52 C425,52 480,60 480,98 V376 C480,405 420,416 350,416 C280,416 220,405 220,376 Z" fill="#0d1920"/>
+
+            <!-- Vessel closure flange & studs -->
+            <rect x="204" y="86" width="292" height="14" rx="3" fill="#3a4f57" stroke="#6a858e" stroke-width="1.5"/>
+            <g fill="#8fa9b1">
+              <rect x="214" y="82" width="6" height="22" rx="1"/><rect x="232" y="82" width="6" height="22" rx="1"/>
+              <rect x="462" y="82" width="6" height="22" rx="1"/><rect x="480" y="82" width="6" height="22" rx="1"/>
+            </g>
+
+            <!-- Water volume in RPV (level changes dynamically) -->
+            <rect id="rvWtr" x="220" y="160" width="260" height="250" fill="url(#gWater)" opacity=".85"/>
+
+            <!-- Downcomer Channels -->
+            <text class="txt" x="233" y="270" style="font-size:9.5px; fill:#e8f1f4;" text-anchor="middle">DOWNCOMER</text>
+            <text class="txt" x="467" y="270" style="font-size:9.5px; fill:#e8f1f4;" text-anchor="middle">DOWNCOMER</text>
+
+            <!-- Core Shroud & Chimney -->
+            <rect x="248" y="120" width="204" height="105" fill="#0b171e" fill-opacity=".5" stroke="#7f9aa2" stroke-width="2"/>
+            <text class="txt" x="350" y="145" text-anchor="middle" style="fill:#dce9ec; font-size:11px;">NATURAL CIRCULATION CHIMNEY</text>
+            <rect x="248" y="225" width="204" height="145" fill="#0b171e" fill-opacity=".3" stroke="#7f9aa2" stroke-width="2.5"/>
+
+            <!-- Core Fuel Grid (240 Assemblies) -->
+            <rect id="rvCore" x="256" y="240" width="188" height="110" rx="3" fill="#3a1f1a" stroke="#6a858e" stroke-width="2"/>
+            <g stroke="#000" stroke-opacity=".4" stroke-width="1">
+              <line x1="287" x2="287" y1="240" y2="350"/><line x1="318" x2="318" y1="240" y2="350"/>
+              <line x1="350" x2="350" y1="240" y2="350"/><line x1="382" x2="382" y1="240" y2="350"/>
+              <line x1="413" x2="413" y1="240" y2="350"/>
+              <line x1="256" x2="444" y1="268" y2="268"/><line x1="256" x2="444" y1="295" y2="295"/>
+              <line x1="256" x2="444" y1="322" y2="322"/>
+            </g>
+            <text class="txt" x="350" y="298" text-anchor="middle" style="fill:#ffffff; font-weight:700; font-size:12px;">240 FUEL ASSEMBLIES</text>
+
+            <!-- Control Rod Guide Tubes below Core Plate -->
+            <rect x="248" y="350" width="204" height="8" fill="#5f7882"/>
+            <text class="txt" x="350" y="366" text-anchor="middle" style="font-size:9.5px;">CORE PLATE &amp; GUIDE TUBES</text>
+            <g stroke="#6a858e" stroke-width="3">
+              <line x1="280" x2="280" y1="358" y2="410"/><line x1="315" x2="315" y1="358" y2="410"/>
+              <line x1="350" x2="350" y1="358" y2="410"/><line x1="385" x2="385" y1="358" y2="410"/>
+              <line x1="420" x2="420" y1="358" y2="410"/>
+            </g>
+
+            <!-- 57 Control Rod Blades -->
+            <g stroke="#0c1519" stroke-width="5" stroke-linecap="butt">
+              <line id="rvRod1" x1="280" x2="280" y1="390" y2="300"/>
+              <line id="rvRod2" x1="315" x2="315" y1="390" y2="300"/>
+              <line id="rvRod3" x1="350" x2="350" y1="390" y2="300"/>
+              <line id="rvRod4" x1="385" x2="385" y1="390" y2="300"/>
+              <line id="rvRod5" x1="420" x2="420" y1="390" y2="300"/>
+            </g>
+
+            <!-- Steam Separators & Dryer in Top Dome -->
+            <g fill="#6f8b94" stroke="#486068" stroke-width="1.5">
+              <rect x="270" y="100" width="16" height="25" rx="2"/>
+              <rect x="310" y="100" width="16" height="25" rx="2"/>
+              <rect x="350" y="100" width="16" height="25" rx="2"/>
+              <rect x="390" y="100" width="16" height="25" rx="2"/>
+              <rect x="430" y="100" width="16" height="25" rx="2"/>
+            </g>
+            <text class="txt" x="350" y="94" text-anchor="middle" style="fill:#dce9ec; font-size:10px;">STEAM SEPARATORS</text>
+            <rect x="280" y="66" width="140" height="8" rx="2" fill="#d0a550" stroke="#8a6520"/>
+            <text class="txt" x="350" y="60" text-anchor="middle" style="fill:#e8cf90; font-size:10px;">STEAM DRYER VANES</text>
+
+            <!-- Feedwater Sparger Ring -->
+            <line x1="220" y1="165" x2="246" y2="165" stroke="#6fb4ee" stroke-width="4"/>
+            <circle cx="233" cy="165" r="4" fill="#3b93d4"/>
+            <line x1="454" y1="165" x2="480" y2="165" stroke="#6fb4ee" stroke-width="4"/>
+
+            <!-- Fine Motion Control Rod Drives (FMCRD) under bottom head -->
+            <g fill="#16262d" stroke="#6a858e" stroke-width="1.5">
+              <rect x="274" y="426" width="12" height="36" rx="2"/>
+              <rect x="309" y="426" width="12" height="36" rx="2"/>
+              <rect x="344" y="426" width="12" height="36" rx="2"/>
+              <rect x="379" y="426" width="12" height="36" rx="2"/>
+              <rect x="414" y="426" width="12" height="36" rx="2"/>
+            </g>
+            <text class="txt" x="350" y="474" text-anchor="middle">57 FINE MOTION DRIVES (FMCRD)</text>
+
+            <!-- Hydraulic Control Units (HCU) Bank -->
+            <rect x="50" y="420" width="14" height="42" rx="3" fill="#2b5a7a" stroke="#6a858e"/>
+            <rect x="70" y="420" width="14" height="42" rx="3" fill="#2b5a7a" stroke="#6a858e"/>
+            <rect x="90" y="420" width="14" height="42" rx="3" fill="#2b5a7a" stroke="#6a858e"/>
+            <rect x="110" y="420" width="14" height="42" rx="3" fill="#2b5a7a" stroke="#6a858e"/>
+            <text class="txt" x="87" y="474" text-anchor="middle">29 HCUs</text>
+
+            <!-- Valves on lines -->
+            <polygon id="rvMsiv" class="valve" points="520,62 542,78 542,62 520,78"/>
+            <text class="txt" x="531" y="54" text-anchor="middle">MSIV</text>
+            <polygon id="rvFw" class="valve" points="140,155 162,171 162,155 140,171"/>
+            <text class="txt" x="151" y="148" text-anchor="middle">FW ISOL</text>
+            <polygon id="rvSlc" class="valve" points="530,355 552,371 552,355 530,371"/>
+            <text class="txt" x="541" y="348" text-anchor="middle">SLC</text>
+            <polygon id="rvIc" class="valve" points="80,18 102,34 102,18 80,34"/>
+            <text class="txt" x="91" y="12" text-anchor="middle">IC ISOL</text>
+
+            <!-- Flow lines -->
+            <path id="rfRiser" class="flow" d="M350,330 V130" stroke="#cfe6f5" stroke-width="3"/>
+            <path id="rfDcL" class="flow" d="M233,175 V370 H270" stroke="#6fb4ee" stroke-width="2.5"/>
+            <path id="rfDcR" class="flow" d="M467,175 V370 H430" stroke="#6fb4ee" stroke-width="2.5"/>
+            <path id="rfSteam" class="flow" d="M480,72 H680" stroke="#dce9ec" stroke-width="2.5"/>
+            <path id="rfFw" class="flow" d="M20,165 H220" stroke="#6fb4ee" stroke-width="2.5"/>
+            <path id="rfBoron" class="flow" d="M680,365 H470" stroke="#d580ff" stroke-width="2.5"/>
+
+            <!-- Real-time Metrics Tags -->
+            <text id="rvPow" class="tag" x="350" y="24" text-anchor="middle"></text>
+            <text id="rvPres" class="tag" x="550" y="110"></text>
+            <text id="rvStmFl" class="txt" x="550" y="128"></text>
+            <text id="rvLvl" class="tag" x="24" y="240"></text>
+            <text id="rvFlow" class="txt" x="24" y="258"></text>
+            <text id="rvFwFl" class="txt" x="24" y="184"></text>
+            <text id="rvRods" class="tag" x="350" y="382" text-anchor="middle"></text>
+          </svg>
         </div>
         <div class="rcards" id="rcards"></div>
       </section>
@@ -327,6 +459,7 @@
             <button class="opt" type="button" id="iCut" aria-pressed="true">Cutaway</button>
             <button class="opt" type="button" id="iLab" aria-pressed="true">Labels</button>
             <button class="opt" type="button" id="iSchem">Schematic</button>
+            <button class="opt" type="button" id="iAct" aria-pressed="true">IC Active (Flow On)</button>
           </div>
         </div>
         <div class="visual-area">
@@ -394,9 +527,9 @@
     </main>
   </div>
 
-  <script src="js/model.js?v=5"></script>
-  <script src="js/renderer3d.js?v=5"></script>
-  <script src="js/views.js?v=5"></script>
+  <script src="js/model.js?v=6"></script>
+  <script src="js/renderer3d.js?v=6"></script>
+  <script src="js/views.js?v=6"></script>
   <script>
     // Initialize IC tube bundle lines in SVG
     const itubes = document.getElementById('itubes');
@@ -405,6 +538,6 @@
         + Array.from({ length: 14 }, (_, i) => `<path id="iT${i}" class="flow" d="M${206 + i * 24},136 V236" stroke="#dce9ec" stroke-width="1.8"/>`).join('');
     }
   </script>
-  <script src="js/detail.js?v=5"></script>
+  <script src="js/detail.js?v=6"></script>
 </body>
 </html>

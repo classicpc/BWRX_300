@@ -418,6 +418,8 @@ html, body {
   fill: #fff;
   stroke: #4f8fbf;
   stroke-width: 1;
+  transform-box: fill-box;
+  transform-origin: center;
   animation: bub 1.8s ease-in infinite;
   opacity: 0;
 }

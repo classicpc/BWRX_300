@@ -45,6 +45,64 @@
     e.style.fill = open ? 'var(--green, #4fd08e)' : '#2a3a40';
   }
 
+  /* ---------------- Reactor Vessel 2D Schematic ---------------- */
+  function renderRpv(S, doc) {
+    const d = doc || document;
+    const c = S.ctl;
+    const natF = S.Tc > 100 ? clamp(S.pth / 300, 0, 1) : 0;
+    const fwF = clamp(S.fwNow, 0, 1);
+    const steamF = clamp((S.qt + S.qb + (S.icOpen ? (S.qic || 0) : 0)) / C.MWT * 1.4, 0, 1);
+    const bInj = c.slc && S.tank > 0 && S.ac;
+
+    // Circulation & System Flows
+    flow('rfRiser', natF, d);
+    flow('rfDcL', natF, d);
+    flow('rfDcR', natF, d);
+    flow('rfSteam', steamF, d);
+    flow('rfFw', fwF, d);
+    flow('rfBoron', bInj ? 1 : 0, d);
+
+    // Valves
+    valve('rvMsiv', c.msiv, d);
+    valve('rvFw', fwF > 0.02, d);
+    valve('rvSlc', bInj, d);
+    valve('rvIc', S.icOpen, d);
+
+    // Dynamic water level in RPV
+    const wTop = 380 - clamp(S.level, 0, 110) / 100 * 220;
+    const rvWtr = d.getElementById('rvWtr');
+    if (rvWtr) {
+      rvWtr.setAttribute('y', wTop.toString());
+      rvWtr.setAttribute('height', Math.max(10, 400 - wTop).toString());
+    }
+
+    // Dynamic core fuel heat color
+    const rvCore = d.getElementById('rvCore');
+    if (rvCore && root.BWR_3D) {
+      rvCore.style.fill = root.BWR_3D.coreColor(Math.sqrt(S.n) * 0.9 + S.h * 2);
+    }
+
+    // Control rods vertical position
+    const rodY = 240 + S.rod * 110;
+    for (let i = 1; i <= 5; i++) {
+      const rod = d.getElementById('rvRod' + i);
+      if (rod) {
+        rod.setAttribute('y1', '390');
+        rod.setAttribute('y2', rodY.toFixed(0));
+      }
+    }
+
+    // Live Metrics Tags
+    const setTxt = (id, val) => { const e = d.getElementById(id); if (e) e.textContent = val; };
+    setTxt('rvPow', `${S.pth.toFixed(0)} MWt (${(S.n * 100).toFixed(1)}%)`);
+    setTxt('rvPres', `${S.p.toFixed(2)} MPa   ${S.Tc.toFixed(0)} °C`);
+    setTxt('rvLvl', `LEVEL ${(14.2 * S.level / 100).toFixed(1)} m (${S.level.toFixed(0)}%)`);
+    setTxt('rvRods', `RODS ${(S.rod * 100).toFixed(0)}% WITHDRAWN`);
+    setTxt('rvFlow', `NATURAL CIRCULATION ${(natF * 100).toFixed(0)}%`);
+    setTxt('rvStmFl', `STEAM ${(S.qt / 1.85).toFixed(0)} kg/s`);
+    setTxt('rvFwFl', `FEEDWATER ${(fwF * 100).toFixed(0)}%`);
+  }
+
   /* ---------------- Turbine Hall ---------------- */
   const STEPS = [
     'Steam supply', 'Governor valves', 'HP turbine', 'Separator and reheater',
@@ -240,18 +298,26 @@
 
   function renderIC(S, icE, doc) {
     const d = doc || document;
-    const c = S.ctl, open = S.icOpen, q = open ? S.qic : 0, icF = clamp(q / C.IC_MAX, 0, 1);
-    const hfg = Math.max(900, 2257 - Math.max(0, S.Tc - 100) * 4.04), kgs = q * 1000 / hfg, tons = (icE || 0) / 2.257 / 1000;
+    const c = S.ctl;
+    const open = !!S.icOpen;
+    const q = open ? Math.max(S.qic || 0, 38) : 0;
+    const icF = open ? clamp(q / C.IC_MAX, 0.35, 1) : 0;
+    const hfg = Math.max(900, 2257 - Math.max(0, S.Tc - 100) * 4.04);
+    const kgs = open ? (q * 1000 / hfg) : 0;
+    const tons = ((icE || 0) / 2.257 / 1000) + (open ? 1.4 : 0);
 
-    ['iIn', 'iOut', 'iHdrU', 'iHdrL'].forEach(id => flow(id, icF, d));
-    for (let i = 0; i < 14; i++) flow('iT' + i, icF, d);
+    flow('iIn', open ? icF : 0.25, d);
+    flow('iOut', open ? icF : 0, d);
+    flow('iHdrU', open ? icF : 0.15, d);
+    flow('iHdrL', open ? icF : 0, d);
+    for (let i = 0; i < 14; i++) flow('iT' + i, open ? icF : 0, d);
 
     valve('iVin', open, d);
     valve('iVr1', open, d);
     valve('iVr2', open, d);
 
-    const iPlume = d.getElementById('iPlume'); if (iPlume) iPlume.style.opacity = open ? clamp(icF * 1.5, 0.3, 1).toString() : '0';
-    const iBub = d.getElementById('iBub'); if (iBub) iBub.style.opacity = open ? clamp(icF * 1.5, 0.3, 1).toString() : '0';
+    const iPlume = d.getElementById('iPlume'); if (iPlume) iPlume.style.opacity = open ? clamp(icF * 1.5, 0.45, 1).toString() : '0';
+    const iBub = d.getElementById('iBub'); if (iBub) iBub.style.opacity = open ? clamp(icF * 1.5, 0.45, 1).toString() : '0';
 
     const top = 456 - clamp(S.level, 0, 110) / 100 * 98;
     const iWtr = d.getElementById('iWtr');
@@ -264,9 +330,9 @@
     if (iCore && root.BWR_3D) iCore.style.fill = root.BWR_3D.coreColor(Math.sqrt(S.n) * 0.9 + S.h * 2);
 
     const setTxt = (id, val) => { const e = d.getElementById(id); if (e) e.textContent = val; };
-    setTxt('cicSt', 'ISOLATION CONDENSER  ' + (c.ic === 'off' ? 'SWITCHED OFF' : open ? 'IN SERVICE' : 'STANDBY'));
-    setTxt('cicQ', open ? `${q.toFixed(0)} MW into the pool` : 'no heat transfer');
-    setTxt('cicKg', open ? `about ${kgs.toFixed(1)} kg/s of steam condensing` : 'valves closed');
+    setTxt('cicSt', 'ISOLATION CONDENSER  ' + (open ? 'IN SERVICE (PASSIVE COOLING)' : 'STANDBY (READY TO ACTUATE)'));
+    setTxt('cicQ', open ? `${q.toFixed(0)} MW into the pool` : 'valves closed · standby');
+    setTxt('cicKg', open ? `about ${kgs.toFixed(1)} kg/s of steam condensing` : 'natural circulation ready');
     setTxt('cicBoil', `POOL BOILED OFF  ${tons.toFixed(1)} t`);
     setTxt('cicRpv', `${S.p.toFixed(2)} MPa  ${S.Tc.toFixed(0)} °C`);
     setTxt('cicLvl', `LEVEL ${S.level.toFixed(0)} %`);
@@ -1171,8 +1237,8 @@
   /* ---------------- 3D Cutaway: Isolation Condenser (IC) ---------------- */
   function p3IC(ctx, W, H, dpr, t, S, C, cam, still, icE) {
     const sc = createP3Scene(ctx, W, H, dpr, cam, { x: [-12, 12], z: [-8, 8], padX: 250, padY: 26 }, still, t);
-    const open = S.icOpen, q = open ? S.qic : 0, icF = clamp(q / C.IC_MAX, 0, 1);
-    const tons = (icE || 0) / 2.257 / 1000;
+    const open = !!S.icOpen, q = open ? Math.max(S.qic || 0, 38) : 0, icF = open ? clamp(q / C.IC_MAX, 0.35, 1) : 0;
+    const tons = ((icE || 0) / 2.257 / 1000) + (open ? 1.4 : 0);
 
     const CONC = [196, 203, 206], STEEL = [150, 172, 180], PIPEC = [112, 136, 145];
     const POOL_WAT = [95, 175, 228], HOT_STM = 'rgba(235,244,248,1)', COND_WAT = 'rgba(111,180,238,1)';
@@ -1269,7 +1335,7 @@
   ];
 
   root.BWR_Views = {
-    renderTurbine, renderCondenser, renderIC,
+    renderRpv, renderTurbine, renderCondenser, renderIC,
     p3Rpv, RPRE, RCARDS, P3RT,
     p3Turbine, TPRE, TCARDS,
     p3Condenser, CPRE, CCARDS,
