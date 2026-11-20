@@ -715,8 +715,564 @@
     ['vessel', 'Reactor vessel', 'whole', S => `${S.p.toFixed(2)} MPa, ${S.Tc.toFixed(0)} °C`, 'A tall steel pressure vessel about 4 m across holds everything. It is drawn shorter and wider than the real one, and cut open so you can see inside.']
   ];
 
+  /* ---------------- Common 3D Scene Builder ---------------- */
+  function createP3Scene(ctx, W, H, dpr, cam, bounds, still, t) {
+    const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+
+    const bg = ctx.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, '#f7fafb');
+    bg.addColorStop(1, '#e0e9ed');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, W, H);
+
+    const cy = Math.cos(cam.yaw), sy = Math.sin(cam.yaw), cp = Math.cos(cam.pitch), sp = Math.sin(cam.pitch);
+    let mnx = 1e9, mxx = -1e9, mny = 1e9, mxy = -1e9;
+    const bX = bounds.x || [-10, 10];
+    const bY = [cam.cy - cam.span / 2, cam.cy + cam.span / 2];
+    const bZ = bounds.z || [-10, 10];
+
+    bX.forEach(x => {
+      bY.forEach(y => {
+        bZ.forEach(z => {
+          const x1 = x * cy + z * sy, z1 = -x * sy + z * cy, yy = -(y * cp - z1 * sp);
+          mnx = Math.min(mnx, x1); mxx = Math.max(mxx, x1); mny = Math.min(mny, yy); mxy = Math.max(mxy, yy);
+        });
+      });
+    });
+
+    const padX = bounds.padX || 240;
+    const padY = bounds.padY || 24;
+    const k = Math.min((W - padX) / (mxx - mnx), (H - padY) / (mxy - mny));
+    const OX = W / 2 - (mnx + mxx) / 2 * k;
+    const OY = H / 2 - (mny + mxy) / 2 * k;
+
+    const P = (x, y, z) => {
+      const x1 = x * cy + z * sy, z1 = -x * sy + z * cy;
+      return [OX + x1 * k, OY - (y * cp - z1 * sp) * k, -y * sp - z1 * cp];
+    };
+
+    const facing = n => n[1] * sp + (-n[0] * sy + n[2] * cy) * cp;
+    const shade = (c, n, amb) => {
+      const l = Math.max(0, n[0] * P3LT[0] + n[1] * P3LT[1] + n[2] * P3LT[2]), f = amb + 0.5 * l;
+      return [Math.min(255, c[0] * f | 0), Math.min(255, c[1] * f | 0), Math.min(255, c[2] * f | 0)];
+    };
+    const rgba = (c, a) => 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + a + ')';
+
+    const SELC = [240, 176, 58], items = [], labs = [];
+
+    function face(pts, n, col, o) {
+      o = o || {};
+      const f = facing(n), a = o.a == null ? 1 : o.a;
+      let L = 2;
+      if (o.shell) L = f > 0 ? (o.Lf || 3) : (o.Lb || 1);
+      else if (a >= 0.999 && f <= 0) return;
+      if (o.tag && o.tag === cam.sel) { col = SELC; if (a < 0.5) o = Object.assign({}, o, { a: 0.55 }); }
+      const aa = o.a == null ? 1 : o.a, p = pts.map(q => P(q[0], q[1], q[2]));
+      let d = 0; for (const q of p) d += q[2];
+      items.push({ L, d: d / p.length + (o.bias || 0), k: 0, p, c: shade(col, n, f > 0 ? 0.64 : 0.5), a: aa });
+    }
+
+    function cyl(c, ax, r0, r1, len, col, o) {
+      o = o || {};
+      const A = P3AX[ax], a = A[0], u = A[1], v = A[2], seg = o.seg || 14, ns = o.ns || Math.max(1, Math.ceil(len / 2.4));
+      const A0 = o.arc ? o.arc[0] : 0, SP = o.arc ? o.arc[1] - o.arc[0] : P3TAU;
+      const pt = (s, th) => {
+        const z = len * s / ns, r = r0 + (r1 - r0) * s / ns, cs = Math.cos(th) * r, sn = Math.sin(th) * r;
+        return [c[0] + a[0] * z + u[0] * cs + v[0] * sn, c[1] + a[1] * z + u[1] * cs + v[1] * sn, c[2] + a[2] * z + u[2] * cs + v[2] * sn];
+      };
+      for (let s = 0; s < ns; s++) {
+        for (let i = 0; i < seg; i++) {
+          const t0 = A0 + i / seg * SP, t1 = A0 + (i + 1) / seg * SP, tm = (t0 + t1) / 2, cm = Math.cos(tm), sm = Math.sin(tm);
+          face([pt(s, t0), pt(s, t1), pt(s + 1, t1), pt(s + 1, t0)], [u[0] * cm + v[0] * sm, u[1] * cm + v[1] * sm, u[2] * cm + v[2] * sm], col, o);
+        }
+      }
+      if (o.caps !== false) {
+        const cap = (s, n) => {
+          const pts = Array.from({ length: seg + (o.arc ? 1 : 0) }, (_, i) => pt(s, A0 + i / seg * SP));
+          if (o.arc) pts.unshift(pt(s, 0).map((x, q) => c[q] + a[q] * len * s / ns));
+          face(pts, n, col, o);
+        };
+        if (r0 > 0) cap(0, [-a[0], -a[1], -a[2]]);
+        if (r1 > 0) cap(ns, a);
+      }
+    }
+
+    function box(x0, y0, z0, x1, y1, z1, col, o) {
+      o = o || {};
+      face([[x0, y0, z0], [x0, y0, z1], [x0, y1, z1], [x0, y1, z0]], [-1, 0, 0], col, o);
+      face([[x1, y0, z0], [x1, y1, z0], [x1, y1, z1], [x1, y0, z1]], [1, 0, 0], col, o);
+      face([[x0, y0, z0], [x1, y0, z0], [x1, y0, z1], [x0, y0, z1]], [0, -1, 0], col, o);
+      face([[x0, y1, z0], [x0, y1, z1], [x1, y1, z1], [x1, y1, z0]], [0, 1, 0], col, o);
+      face([[x0, y0, z0], [x0, y1, z0], [x1, y1, z0], [x1, y0, z0]], [0, 0, -1], col, o);
+      face([[x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1]], [0, 0, 1], col, o);
+    }
+
+    function line(a, b, col, w, L) {
+      const p = P(a[0], a[1], a[2]), q = P(b[0], b[1], b[2]);
+      items.push({ L: L == null ? 4 : L, d: (p[2] + q[2]) / 2, k: 1, x1: p[0], y1: p[1], x2: q[0], y2: q[1], col, w });
+    }
+
+    const phase = f => still ? 0 : t * 14 / (1.7 - 1.3 * Math.sqrt(f));
+
+    function pipe(pts, r, col, fl) {
+      let cum = 0;
+      for (let i = 0; i < pts.length - 1; i++) {
+        const p = P(pts[i][0], pts[i][1], pts[i][2]), q = P(pts[i + 1][0], pts[i + 1][1], pts[i + 1][2]);
+        const d = (p[2] + q[2]) / 2, len = Math.hypot(q[0] - p[0], q[1] - p[1]);
+        items.push({ L: 2, d, k: 1, x1: p[0], y1: p[1], x2: q[0], y2: q[1], col: rgba(col, 1), w: Math.max(1.5, 2 * r * k), hl: 1 });
+        if (fl && fl.f >= 0.015) {
+          const f = clamp(fl.f, 0, 1), sf = Math.sqrt(f);
+          items.push({ L: 2, d: d - 0.05, k: 1, x1: p[0], y1: p[1], x2: q[0], y2: q[1], col: fl.color, w: Math.max(1.6, r * k * 1.1), dash: [6, 8], off: cum - phase(f), al: 0.4 + 0.6 * sf });
+        }
+        cum += len;
+      }
+    }
+
+    function fline(pts, f, color, wpx) {
+      f = clamp(f, 0, 1);
+      if (f < 0.015) return;
+      let cum = 0; const sf = Math.sqrt(f);
+      for (let i = 0; i < pts.length - 1; i++) {
+        const p = P(pts[i][0], pts[i][1], pts[i][2]), q = P(pts[i + 1][0], pts[i + 1][1], pts[i + 1][2]);
+        items.push({ L: 2, d: (p[2] + q[2]) / 2 - 0.05, k: 1, x1: p[0], y1: p[1], x2: q[0], y2: q[1], col: color, w: wpx || 2, dash: [5, 7], off: cum - phase(f), al: 0.4 + 0.6 * sf });
+        cum += Math.hypot(q[0] - p[0], q[1] - p[1]);
+      }
+    }
+
+    function lab(txt, x, y, z, side, tag) {
+      const p = P(x, y, z);
+      labs.push({ txt, ax: p[0], ay: p[1], side, tag });
+    }
+
+    function bubble(x, y, z, r, alpha, col) {
+      const p = P(x, y, z);
+      items.push({ L: 5, d: p[2], k: 3, x: p[0], y: p[1], r: Math.max(1.2, r * k), a: alpha, col: col || ('rgba(250,252,253,' + alpha + ')') });
+    }
+
+    function finish() {
+      items.sort((a, b) => a.L - b.L || b.d - a.d);
+      for (const it of items) {
+        if (it.k === 0) {
+          ctx.beginPath();
+          it.p.forEach((q, i) => i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]));
+          ctx.closePath();
+          ctx.fillStyle = rgba(it.c, it.a);
+          ctx.fill();
+          if (it.a >= 0.999) {
+            ctx.strokeStyle = rgba(it.c, 1);
+            ctx.lineWidth = 0.7;
+            ctx.stroke();
+          }
+        } else if (it.k === 1) {
+          ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(it.x1, it.y1); ctx.lineTo(it.x2, it.y2);
+          if (it.dash) {
+            ctx.setLineDash(it.dash);
+            ctx.lineDashOffset = it.off;
+            ctx.globalAlpha = it.al;
+            ctx.lineCap = 'butt';
+          }
+          ctx.strokeStyle = it.col;
+          ctx.lineWidth = it.w;
+          ctx.stroke();
+          if (it.dash) { ctx.setLineDash([]); ctx.globalAlpha = 1; }
+          if (it.hl) {
+            ctx.beginPath();
+            ctx.moveTo(it.x1 - it.w * 0.18, it.y1 - it.w * 0.18);
+            ctx.lineTo(it.x2 - it.w * 0.18, it.y2 - it.w * 0.18);
+            ctx.strokeStyle = 'rgba(255,255,255,.28)';
+            ctx.lineWidth = it.w * 0.26;
+            ctx.stroke();
+          }
+        } else if (it.k === 3) {
+          ctx.beginPath();
+          ctx.arc(it.x, it.y, it.r, 0, P3TAU);
+          ctx.fillStyle = it.col || ('rgba(250,252,253,' + it.a + ')');
+          ctx.fill();
+          ctx.strokeStyle = 'rgba(80,130,170,' + it.a * 0.8 + ')';
+          ctx.lineWidth = 0.8;
+          ctx.stroke();
+        }
+      }
+
+      if (cam.labels !== false) {
+        ctx.font = p3f(500, 11);
+        ctx.textBaseline = 'middle';
+        ctx.lineJoin = 'round';
+
+        ['L', 'R'].forEach(side => {
+          const ls = labs.filter(l => l.side === side && l.ay > 8 && l.ay < H - 8).sort((a, b) => a.ay - b.ay);
+          let last = -99;
+          ls.forEach(l => {
+            l.y = Math.max(l.ay, last + 15);
+            last = l.y;
+          });
+          for (let i = ls.length - 1; i >= 0; i--) {
+            if (ls[i].y > H - 8) {
+              ls[i].y = H - 8;
+              if (i < ls.length - 1) ls[i].y = Math.min(ls[i].y, ls[i + 1].y - 15);
+            }
+          }
+          ls.forEach(l => {
+            const x = side === 'L' ? 10 : W - 10, w = ctx.measureText(l.txt).width;
+            const ex = side === 'L' ? x + w + 6 : x - w - 6, sel = l.tag === cam.sel;
+            ctx.beginPath(); ctx.moveTo(l.ax, l.ay); ctx.lineTo(ex, l.y);
+            ctx.strokeStyle = sel ? '#d88a00' : 'rgba(60,80,88,.5)';
+            ctx.lineWidth = sel ? 1.6 : 1;
+            ctx.stroke();
+            ctx.beginPath(); ctx.arc(l.ax, l.ay, 2.2, 0, P3TAU);
+            ctx.fillStyle = sel ? '#d88a00' : '#43575e';
+            ctx.fill();
+            ctx.textAlign = side === 'L' ? 'left' : 'right';
+            ctx.lineWidth = 3.5;
+            ctx.strokeStyle = 'rgba(255,255,255,.9)';
+            ctx.strokeText(l.txt, x, l.y);
+            ctx.fillStyle = sel ? '#8a5600' : '#2b3f46';
+            ctx.fillText(l.txt, x, l.y);
+          });
+        });
+      }
+    }
+
+    return { P, face, cyl, box, line, pipe, fline, lab, bubble, finish, k, OX, OY };
+  }
+
+  /* ---------------- 3D Cutaway: Turbine Hall ---------------- */
+  function p3Turbine(ctx, W, H, dpr, t, S, C, cam, still) {
+    const sc = createP3Scene(ctx, W, H, dpr, cam, { x: [-17, 21], z: [-8, 8], padX: 250, padY: 26 }, still, t);
+    const on = S.turbOn && S.turbTrip <= 0, rpm = S.rpm, load = clamp(S.qt / C.MWT, 0, 1.1);
+    const gov = on ? clamp(S.qt / C.MWT * 100, 0, 100) : 0, brk = on && S.offsite;
+    const steamF = clamp((S.qt + S.qb) / C.MWT * 1.4, 0, 1), bypF = clamp(S.qb / C.QB_MAX, 0, 1);
+    const fwF = clamp(S.fwNow, 0, 1);
+
+    const STEEL = [150, 172, 180], DKS = [85, 102, 110], CONC = [196, 203, 206], PIPEC = [112, 136, 145];
+    const COPPER = [210, 145, 55], TCAS = on ? [75, 140, 115] : [110, 130, 138], GEN = brk ? [70, 138, 110] : [105, 120, 130];
+    const STEAM_COL = 'rgba(235,244,248,1)', BYP_COL = 'rgba(255,196,107,1)', GRID_COL = 'rgba(255,236,150,1)', FW_COL = 'rgba(111,180,238,1)';
+    const cutArc = cam.cut ? [Math.PI * 0.45, Math.PI * 2.0] : null;
+
+    // Foundation basement & concrete piers
+    sc.box(-18, 0, -8, 20, 1.0, 8, CONC);
+    [-11, -3, 3, 11].forEach(x => {
+      sc.box(x - 0.8, 1.0, -6.5, x + 0.8, 4.8, -5.0, CONC);
+      sc.box(x - 0.8, 1.0, 5.0, x + 0.8, 4.8, 6.5, CONC);
+    });
+
+    // Mezzanine operating deck
+    sc.box(-18, 4.6, -7.5, 19, 5.2, 7.5, [180, 192, 198], { a: 0.35, shell: true, Lb: 1, Lf: 3 });
+
+    // Main rotating shaft line
+    sc.cyl([-13.5, 7.5, 0], 'x', 0.32, 0.32, 29.5, [180, 195, 200], { seg: 8, tag: 'shaft' });
+    sc.fline([[-13.5, 7.5, 0], [16, 7.5, 0]], on ? S.rpm / 1500 : 0, STEAM_COL, 3);
+    [-13, -7.2, -6.2, -0.2, 0.8, 6.8, 7.8, 14.8].forEach(x => {
+      sc.box(x - 0.4, 6.5, -0.6, x + 0.4, 8.2, 0.6, DKS, { tag: 'shaft' });
+    });
+
+    // Main Steam Line & Governor Valves
+    sc.pipe([[-17, 12.5, 0], [-13.5, 12.5, 0], [-13.5, 9.8, 0], [-12.2, 9.8, 0]], 0.36, PIPEC, { f: steamF, color: STEAM_COL });
+    sc.cyl([-15, 12.5, 0], 'y', 0.55, 0.55, 1.2, on ? [60, 190, 125] : [58, 74, 82], { seg: 10, tag: 'gv' });
+    sc.box(-13.8, 9.2, -1.3, -12.4, 10.4, 1.3, [90, 110, 120], { tag: 'gv' });
+    [-0.8, -0.27, 0.27, 0.8].forEach(z => {
+      sc.cyl([-13.1, 10.4, z], 'y', 0.22, 0.22, 1.0, gov > 5 ? [60, 190, 125] : [58, 74, 82], { seg: 8, tag: 'gv' });
+    });
+
+    // Turbine Bypass System
+    sc.pipe([[-16, 12.5, 0], [-16, 12.5, -4.5], [-16, 2.5, -4.5], [-2, 2.5, -4.5], [-2, 2.5, -1.5]], 0.32, PIPEC, { f: bypF, color: BYP_COL });
+    sc.box(-16.5, 8.5, -4.9, -15.5, 9.7, -4.1, S.qb > 5 ? [60, 190, 125] : [58, 74, 82], { tag: 'by' });
+
+    // High-Pressure (HP) Turbine
+    sc.cyl([-12.2, 7.5, 0], 'x', 1.5, 1.5, 4.8, TCAS, { seg: 22, arc: cutArc, tag: 'hp' });
+    for (let i = 0; i < 6; i++) {
+      sc.cyl([-11.8 + i * 0.7, 7.5, 0], 'x', 0.65 + i * 0.12, 0.65 + i * 0.12, 0.25, [140, 160, 170], { seg: 16, tag: 'hp' });
+    }
+    sc.pipe([[-7.8, 8.6, 0], [-7.8, 11.2, 0], [-7.8, 11.2, -3.8], [-6.2, 11.2, -3.8]], 0.3, PIPEC, { f: on ? load : 0, color: STEAM_COL });
+
+    // Moisture Separator Reheater (MSR)
+    sc.cyl([-6.0, 11.2, -3.8], 'x', 1.15, 1.15, 12.0, [130, 146, 156], { seg: 18, arc: cam.cut ? [Math.PI * 0.3, Math.PI * 1.8] : null, tag: 'msr' });
+    sc.box(-4.5, 10.7, -4.3, 4.5, 11.7, -3.3, [165, 180, 188], { a: 0.6, tag: 'msr' });
+    sc.cyl([-4.0, 11.2, -3.8], 'x', 0.45, 0.45, 8.0, [210, 130, 60], { a: 0.7, seg: 12, tag: 'msr' });
+    sc.pipe([[-3.5, 11.2, -3.8], [-3.5, 11.2, 0], [-3.5, 9.8, 0]], 0.32, PIPEC, { f: on ? load : 0, color: BYP_COL });
+    sc.pipe([[3.5, 11.2, -3.8], [3.5, 11.2, 0], [3.5, 9.8, 0]], 0.32, PIPEC, { f: on ? load : 0, color: BYP_COL });
+
+    // Low-Pressure Turbines (LP1 and LP2)
+    sc.cyl([-6.0, 7.5, 0], 'x', 1.3, 2.3, 5.6, TCAS, { seg: 22, arc: cutArc, tag: 'lp' });
+    sc.cyl([0.6, 7.5, 0], 'x', 1.3, 2.3, 5.6, TCAS, { seg: 22, arc: cutArc, tag: 'lp' });
+    [-5.2, -4.4, -3.6, -2.8, -2.0, -1.2].forEach((x, i) => {
+      sc.cyl([x, 7.5, 0], 'x', 0.8 + Math.abs(i - 2.5) * 0.45, 0.8 + Math.abs(i - 2.5) * 0.45, 0.22, [140, 160, 170], { seg: 16, tag: 'lp' });
+    });
+    [1.4, 2.2, 3.0, 3.8, 4.6, 5.4].forEach((x, i) => {
+      sc.cyl([x, 7.5, 0], 'x', 0.8 + Math.abs(i - 2.5) * 0.45, 0.8 + Math.abs(i - 2.5) * 0.45, 0.22, [140, 160, 170], { seg: 16, tag: 'lp' });
+    });
+    sc.box(-5.8, 2.0, -2.2, -0.8, 5.2, 2.2, [70, 95, 115], { a: 0.35, shell: true, tag: 'lp' });
+    sc.box(0.8, 2.0, -2.2, 5.8, 5.2, 2.2, [70, 95, 115], { a: 0.35, shell: true, tag: 'lp' });
+
+    // Main Synchronous Generator & Exciter
+    sc.cyl([8.0, 7.5, 0], 'x', 1.9, 1.9, 6.5, GEN, { seg: 22, tag: 'gen' });
+    sc.cyl([7.7, 7.5, 0], 'x', 2.0, 2.0, 0.3, DKS, { seg: 20 });
+    sc.cyl([14.5, 7.5, 0], 'x', 2.0, 2.0, 0.3, DKS, { seg: 20 });
+    sc.cyl([8.2, 7.5, 0], 'x', 0.95, 0.95, 6.1, [195, 165, 80], { a: 0.6, seg: 14, tag: 'gen' });
+    sc.cyl([15.2, 7.5, 0], 'x', 0.9, 0.9, 2.2, [110, 130, 138], { seg: 14, tag: 'gen' });
+
+    // Isolated Phase Bus (IPB) & Breaker
+    sc.pipe([[11.2, 9.4, 0], [11.2, 12.0, 0], [18.0, 12.0, 0], [18.0, 5.0, 0]], 0.34, COPPER, { f: brk ? clamp(S.mwe / 300, 0, 1) : 0, color: GRID_COL });
+    sc.box(13.8, 11.2, -0.8, 15.4, 12.8, 0.8, brk ? [60, 190, 125] : [58, 74, 82], { tag: 'gen' });
+
+    // Feedwater Heaters & Pumps below deck
+    sc.cyl([-3.0, 2.2, 4.5], 'x', 0.8, 0.8, 3.8, [125, 142, 150], { seg: 12, tag: 'fwtrain' });
+    sc.cyl([2.5, 2.2, 4.5], 'x', 0.85, 0.85, 4.0, [125, 142, 150], { seg: 12, tag: 'fwtrain' });
+    sc.cyl([8.0, 1.2, 4.5], 'y', 0.8, 0.8, 1.8, fwF > 0.02 ? [60, 190, 125] : [58, 74, 82], { seg: 12, tag: 'fwtrain' });
+    sc.pipe([[8.0, 1.8, 4.5], [8.0, 1.8, 7.2], [-17, 1.8, 7.2]], 0.3, PIPEC, { f: fwF, color: FW_COL });
+
+    // Callout Labels
+    sc.lab('MAIN STEAM INLET (7 MPa)', -17, 12.5, 0, 'L', 'gv');
+    sc.lab('GOVERNOR & STOP VALVES', -13.1, 11.4, 0, 'L', 'gv');
+    sc.lab('TURBINE BYPASS LINE', -16, 9.0, -4.5, 'L', 'by');
+    sc.lab('HIGH-PRESSURE TURBINE', -10.0, 7.5, 1.5, 'L', 'hp');
+    sc.lab('COLD REHEAT EXHAUST', -7.8, 11.2, -1.8, 'L', 'msr');
+    sc.lab('MOISTURE SEPARATOR / REHEATER', 0, 12.4, -3.8, 'L', 'msr');
+    sc.lab('FEEDWATER HEATERS & PUMPS', 0, 2.2, 4.5, 'L', 'fwtrain');
+
+    sc.lab('HOT REHEAT CROSSOVER PIPING', 3.5, 11.2, 0, 'R', 'msr');
+    sc.lab('LP1 & LP2 DOUBLE-FLOW TURBINES', 2.8, 7.5, 2.2, 'R', 'lp');
+    sc.lab('EXHAUST HOOD TO CONDENSER', 3.3, 3.6, 2.2, 'R', 'lp');
+    sc.lab('ROTOR SHAFT & BEARINGS', 7.3, 7.5, 0, 'R', 'shaft');
+    sc.lab('300 MWe SYNCHRONOUS GENERATOR', 11.2, 7.5, 2.0, 'R', 'gen');
+    sc.lab('BRUSHLESS EXCITER', 16.2, 7.5, 1.0, 'R', 'gen');
+    sc.lab('GENERATOR BREAKER & IPB DUCT', 14.6, 12.8, 0, 'R', 'gen');
+
+    sc.finish();
+  }
+
+  const TPRE = { whole: [7.5, 26.0], hp: [8.5, 14.0], msr: [9.5, 16.0], gen: [7.5, 14.0] };
+  const TCARDS = [
+    ['hp', 'HP Turbine', 'hp', S => S.turbOn ? `${(S.p * (0.12 + 0.1 * clamp(S.qt / C.MWT, 0, 1.1))).toFixed(2)} MPa exhaust, ${(S.qt / 1.85).toFixed(0)} kg/s` : 'tripped / idle', 'The high-pressure turbine receives saturated steam from the reactor at full RPV pressure (~7 MPa). The single-flow bladed rotor expands the steam, extracting roughly 80 MW of mechanical shaft power before discharging moisture-laden exhaust steam to the moisture separator reheater.'],
+    ['gv', 'Governor & stop valves', 'hp', S => `stop: ${S.turbOn ? 'OPEN' : 'CLOSED'}, governor: ${(S.turbOn ? clamp(S.qt / C.MWT * 100, 0, 100) : 0).toFixed(0)} %`, 'Four electro-hydraulic governor valves modulate steam admission into the HP nozzle chest to maintain grid frequency and reactor pressure. Fast-closing main stop valves trip in under 100 ms on turbine overspeed, high vibration, or reactor scram.'],
+    ['msr', 'Moisture separator reheater', 'msr', S => S.turbOn ? `reheat: ${(tsat(Math.max(0.1, S.p * 0.2)) + 30).toFixed(0)} °C, chevron vanes active` : 'cold / idle', 'Removes water droplets from HP turbine exhaust via chevron vane packs, then reheats the dried steam with live RPV steam coils to 250-260 °C. This prevents droplet blade erosion in the downstream low-pressure turbines and boosts thermal cycle efficiency.'],
+    ['lp', 'LP turbines (LP1 & LP2)', 'msr', S => S.turbOn ? `${S.rpm.toFixed(0)} rpm, exhaust ${S.vac.toFixed(1)} kPa` : 'stationary', 'Two double-flow LP turbines expand reheated steam from ~1.2 MPa down to deep condenser vacuum (~5 kPa). The large final-stage titanium blades extract the remaining thermal energy. Exhaust hoods discharge steam straight down into the main condenser neck.'],
+    ['by', 'Turbine bypass system', 'hp', S => `${(S.qb / C.QB_MAX * 100).toFixed(0)} % open (${S.qb.toFixed(0)} MWt dump)`, 'Fast-acting bypass valves can divert up to 100% of full reactor steam flow directly around the turbine into the condenser. This prevents reactor trips during sudden grid load rejections and allows flexible station power maneuvering.'],
+    ['gen', 'Main generator & exciter', 'gen', S => `${S.mwe.toFixed(0)} MWe, ${S.offsite && S.turbOn ? 'grid synchronized (60 Hz)' : 'breaker open'}, stator ${(45 + 55 * Math.pow(S.mwe / 300, 2)).toFixed(0)} °C`, 'Two-pole synchronous AC generator spinning at 1500/1800 rpm, producing up to 300 MWe net clean electricity at 20 kV. Cooled by pressurized hydrogen and stator water circuits. A brushless exciter mounted at the shaft end supplies rotor field current.'],
+    ['shaft', 'Rotor shaft & bearings', 'whole', S => `${S.rpm.toFixed(0)} rpm, vibration ${S.rpm > 20 ? (12 + 10 * S.rpm / 1500 + 25 * Math.max(0, S.vac - 12) / 60).toFixed(0) : '0'} µm`, 'Rigidly coupled monoblock steel rotor train supported on journal bearings with forced oil lubrication and jacking oil for turning gear operation. Continuous proximity probes monitor radial shaft vibration and axial thrust bearing displacement.'],
+    ['fwtrain', 'Feedwater train & heaters', 'whole', S => `feedwater ${(clamp(S.fwNow, 0, 1) * 100).toFixed(0)} % of rated, ${(S.fwNow > 0.02 ? 40 + 175 * clamp(S.qt / 600, 0, 1) : 0).toFixed(0)} °C`, 'Condensate and motor-driven reactor feed pumps boost feedwater pressure to overcome RPV internal pressure (~7.2 MPa). Closed shell-and-tube feedwater heaters extract turbine bleed steam to preheat feedwater to ~215 °C before injection into the reactor downcomer.']
+  ];
+
+  /* ---------------- 3D Cutaway: Condenser Room ---------------- */
+  function p3Condenser(ctx, W, H, dpr, t, S, C, cam, still) {
+    const sc = createP3Scene(ctx, W, H, dpr, cam, { x: [-17, 18], z: [-8, 8], padX: 250, padY: 26 }, still, t);
+    const c = S.ctl, condCap = (S.offsite && S.sea) ? c.cw / 3 : 0, cwFlow = condCap * 21;
+    const heat = 0.652 * S.qt + S.qb, dT = cwFlow > 0 ? heat / (cwFlow * 4.18) : 0, kg = (S.qt + S.qb) / 1.85;
+    const lake = c.lakeT, outT = lake + dT, load = clamp((S.qt + S.qb) / C.MWT, 0, 1.2);
+    const steamT = tsat(Math.max(S.vac, 2) / 1000);
+
+    const CONC = [196, 203, 206], PIPEC = [112, 136, 145], LAKE_IN = [59, 147, 212], LAKE_OUT = [224, 110, 40];
+    const HOTWELL_COL = [42, 115, 174];
+
+    // Foundation floor & piers
+    sc.box(-18, -1.5, -8, 18, 0, 8, CONC);
+    [[-8, -3], [-8, 3], [8, -3], [8, 3]].forEach(q => {
+      sc.cyl([q[0], 0, q[1]], 'y', 0.6, 0.6, 0.8, [120, 135, 145], { seg: 10 });
+    });
+
+    // Steam Exhaust Neck from turbine deck
+    sc.box(-7.0, 5.8, -3.8, 7.0, 8.5, 3.8, [80, 105, 120], { a: 0.35, shell: true, tag: 'shell' });
+    [-4, -2, 0, 2, 4].forEach(x => {
+      sc.fline([[x, 8.2, 0], [x, 5.6, 0]], load, 'rgba(235,244,248,1)', 2.4);
+    });
+
+    // Main Condenser Vacuum Shell
+    sc.box(-9.5, 0.8, -4.5, 9.5, 6.0, 4.5, [65, 95, 125], { a: cam.cut ? 0.22 : 0.78, shell: true, tag: 'shell' });
+
+    // Divided Waterboxes
+    sc.box(-11.5, 1.0, -4.2, -9.5, 5.8, 4.2, LAKE_IN, { a: 0.8, tag: 'wbox' });
+    sc.box(9.5, 1.0, -4.2, 11.5, 5.8, 4.2, LAKE_OUT, { a: 0.8, tag: 'wbox' });
+    sc.box(-11.5, 3.3, -4.2, -9.5, 3.5, 4.2, [80, 100, 110], { tag: 'wbox' }); // divider plate
+
+    // Titanium Cooling Tube Matrix
+    for (let r = 0; r < 7; r++) {
+      const y = 1.7 + r * 0.58;
+      for (let zIdx = 0; zIdx < 4; zIdx++) {
+        const z = -2.8 + zIdx * 1.85;
+        const frac = (r * 4 + zIdx) / 28;
+        const col = [
+          Math.round(LAKE_IN[0] + (LAKE_OUT[0] - LAKE_IN[0]) * frac),
+          Math.round(LAKE_IN[1] + (LAKE_OUT[1] - LAKE_IN[1]) * frac),
+          Math.round(LAKE_IN[2] + (LAKE_OUT[2] - LAKE_IN[2]) * frac)
+        ];
+        sc.cyl([-9.5, y, z], 'x', 0.12, 0.12, 19.0, col, { seg: 6, tag: 'tubes' });
+        sc.fline([[-9.5, y, z], [9.5, y, z]], cwFlow / 21, 'rgba(235,248,255,0.9)', 1.5);
+      }
+    }
+
+    // Condensation Rain
+    if (load > 0.05 && !still) {
+      for (let i = 0; i < 22; i++) {
+        const ph = ((t * 1.8 + i * 0.18) % 1);
+        const rx = -7 + (i * 3.7 % 14), rz = -3 + (i * 2.3 % 6);
+        sc.bubble(rx, 5.2 - ph * 4.2, rz, 0.08, 0.85 * (1 - ph * 0.2), 'rgba(143,208,255,0.9)');
+      }
+    }
+
+    // Condensate Hotwell Sump
+    sc.box(-7.5, -1.0, -3.2, 7.5, 0.8, 3.2, HOTWELL_COL, { a: 0.8, tag: 'hotwell' });
+    sc.box(-7.5, 0.75, -3.2, 7.5, 0.8, 3.2, [90, 175, 235], { a: 0.9, tag: 'hotwell' }); // water surface
+
+    // Condensate Extraction Pumps
+    sc.cyl([4.0, -0.6, 5.5], 'y', 0.7, 0.7, 2.8, S.fwNow > 0.02 ? [60, 190, 125] : [58, 74, 82], { seg: 12, tag: 'cpumps' });
+    sc.cyl([6.5, -0.6, 5.5], 'y', 0.7, 0.7, 2.8, S.fwNow > 0.02 ? [60, 190, 125] : [58, 74, 82], { seg: 12, tag: 'cpumps' });
+    sc.pipe([[0, -0.2, 3.2], [0, -0.2, 5.5], [4.0, -0.2, 5.5]], 0.3, PIPEC, { f: S.fwNow, color: 'rgba(111,180,238,1)' });
+    sc.pipe([[4.0, 2.2, 5.5], [4.0, 2.2, 7.5], [17.0, 2.2, 7.5]], 0.3, PIPEC, { f: S.fwNow, color: 'rgba(111,180,238,1)' });
+
+    // Circulating Water Pumps & Intake Screens
+    [-1.8, 0.2, 2.2].forEach((z, i) => {
+      sc.cyl([-15.0, -0.8, z], 'y', 0.75, 0.75, 3.2, (condCap > 0 && c.cw >= i + 1) ? [60, 190, 125] : [58, 74, 82], { seg: 12, tag: 'cwpumps' });
+    });
+    sc.box(-17.5, -0.8, -3.5, -16.2, 2.5, 3.5, [130, 145, 155], { tag: 'lake' }); // intake screens
+    sc.pipe([[-15.0, 2.0, -1.0], [-11.5, 2.0, -1.0]], 0.5, PIPEC, { f: cwFlow / 21, color: 'rgba(111,180,238,1)' });
+    sc.pipe([[-15.0, 4.4, 1.0], [-11.5, 4.4, 1.0]], 0.5, PIPEC, { f: cwFlow / 21, color: 'rgba(111,180,238,1)' });
+
+    // Discharge Diffuser to Lake
+    sc.pipe([[11.5, 2.0, 0], [16.5, 2.0, 0], [16.5, -1.0, 0]], 0.55, PIPEC, { f: cwFlow / 21, color: 'rgba(240,140,60,1)' });
+
+    // Air Ejectors & Vacuum Skid
+    sc.box(-5.5, 3.2, -6.5, -2.5, 5.2, -5.0, [110, 128, 138], { tag: 'air' });
+    sc.pipe([[-4.0, 4.2, -4.5], [-4.0, 4.2, -5.0]], 0.2, PIPEC, { f: 0.4, color: 'rgba(200,215,225,1)' });
+
+    // Callout Labels
+    sc.lab('STEAM EXHAUST FROM TURBINE', 0, 8.5, 0, 'L', 'shell');
+    sc.lab('MAIN CONDENSER SHELL (VACUUM)', -6.0, 6.0, 0, 'L', 'shell');
+    sc.lab('DIVIDED INLET WATERBOX', -11.5, 4.5, 0, 'L', 'wbox');
+    sc.lab('CW CIRCULATING WATER PUMPS', -15.0, 3.0, 1.0, 'L', 'cwpumps');
+    sc.lab('LAKE ONTARIO INTAKE & SCREENS', -16.0, 0.5, 2.0, 'L', 'lake');
+    sc.lab('STEAM JET AIR EJECTORS', -4.0, 4.8, -5.8, 'L', 'air');
+
+    sc.lab('TITANIUM TUBE BUNDLE', 0, 3.4, 4.5, 'R', 'tubes');
+    sc.lab('STEAM CONDENSATION RAIN', 0, 1.2, 2.0, 'R', 'tubes');
+    sc.lab('OUTLET WATERBOX (+ΔT)', 11.5, 4.5, 0, 'R', 'wbox');
+    sc.lab('CONDENSATE HOTWELL SUMP', 0, -0.2, 3.2, 'R', 'hotwell');
+    sc.lab('CONDENSATE EXTRACTION PUMPS', 5.5, 2.5, 5.5, 'R', 'cpumps');
+    sc.lab('DISCHARGE DIFFUSER TO LAKE', 16.5, 1.0, 0, 'R', 'lake');
+
+    sc.finish();
+  }
+
+  const CPRE = { whole: [3.5, 20.0], tubes: [3.5, 12.0], hotwell: [0.5, 11.0], cw: [2.0, 16.0] };
+  const CCARDS = [
+    ['shell', 'Condenser vacuum shell', 'tubes', S => `vacuum: ${S.vac.toFixed(1)} kPa, sat temp: ${tsat(Math.max(S.vac, 2) / 1000).toFixed(0)} °C`, 'Heavy reinforced steel vacuum vessel enclosing thousands of thin-walled tubes. Maintains internal pressure far below atmospheric (~5 kPa abs), creating the massive pressure drop that drives turbine rotation. Expansion bellows absorb thermal movement from turbine exhaust.'],
+    ['tubes', 'Titanium cooling tube bundle', 'tubes', S => `${(0.652 * S.qt + S.qb).toFixed(0)} MW heat rejected to lake`, 'Dual banks of corrosion-resistant titanium tubes. Cold water from Lake Ontario flows through the tube bores while LP turbine exhaust steam condenses on outer tube surfaces, transferring latent heat of vaporization with minimal thermal resistance.'],
+    ['wbox', 'Inlet & outlet waterboxes', 'tubes', S => `${(S.offsite && S.sea ? (S.ctl.cw / 3) * 21 : 0).toFixed(0)} m³/s lake flow, divided dual-path`, 'D-shaped waterboxes at each end distribute incoming cooling water across tube sheet holes. Divided design allows one half of the condenser to be isolated and inspected for tube cleaning while the reactor operates at reduced power.'],
+    ['hotwell', 'Condensate hotwell sump', 'hotwell', S => `level: normal, condensate ${S.tcond.toFixed(0)} °C, deaerating`, 'Deep trough at the condenser bottom that collects millions of droplets of pure distilled condensate. Designed with perforated retention trays to deaerate water and prevent dissolved oxygen from entering the reactor feedwater system.'],
+    ['cpumps', 'Condensate extraction pumps', 'hotwell', S => S.fwNow > 0.02 ? `running, ${((S.qt + S.qb) / 1.85).toFixed(0)} kg/s to heaters` : 'standby', 'Vertical canned motor centrifugal pumps installed in pits below the hotwell to provide net positive suction head (NPSH). Pumps discharge condensate through full-flow condensate polishers (demineralizers) and low-pressure feedwater heaters.'],
+    ['cwpumps', 'Circulating water pumps', 'cw', S => `${S.ctl.cw} of 3 CW pumps running, ${(S.offsite && S.sea ? (S.ctl.cw / 3) * 21 : 0).toFixed(0)} m³/s`, 'Three vertical mixed-flow pumps located in the pumphouse structure drawing cooling water from the lake intake channel. Operates at low head (~12-18 m) to circulate high water volumes through the condenser tubes.'],
+    ['air', 'Air ejector & vacuum system', 'hotwell', S => S.vac < 15 ? 'normal vacuum, air in-leakage minimal' : 'warning: reduced vacuum', 'Two-stage steam jet air ejectors (SJAE) with inter-condensers, backed by liquid ring mechanical vacuum pumps. Continuously sweeps non-condensible gases (air in-leakage, radiolytic hydrogen/oxygen) out of condenser tube bundle core.'],
+    ['lake', 'Lake Ontario intake & diffuser', 'cw', S => `lake: ${S.ctl.lakeT.toFixed(0)} °C, discharge: ${(S.ctl.lakeT + (S.ctl.cw > 0 ? (0.652 * S.qt + S.qb) / ((S.ctl.cw / 3) * 21 * 4.18) : 0)).toFixed(1)} °C (+${(S.ctl.cw > 0 ? (0.652 * S.qt + S.qb) / ((S.ctl.cw / 3) * 21 * 4.18) : 0).toFixed(1)} K)`, 'Once-through cooling system at Darlington site. Deep-water intake with fish-deterrent wedge-wire screens pulls water from Lake Ontario. Discharge flows through multi-port diffusers on the lake bed, ensuring rapid thermal mixing with strict environmental ΔT limits.']
+  ];
+
+  /* ---------------- 3D Cutaway: Isolation Condenser (IC) ---------------- */
+  function p3IC(ctx, W, H, dpr, t, S, C, cam, still, icE) {
+    const sc = createP3Scene(ctx, W, H, dpr, cam, { x: [-12, 12], z: [-8, 8], padX: 250, padY: 26 }, still, t);
+    const open = S.icOpen, q = open ? S.qic : 0, icF = clamp(q / C.IC_MAX, 0, 1);
+    const tons = (icE || 0) / 2.257 / 1000;
+
+    const CONC = [196, 203, 206], STEEL = [150, 172, 180], PIPEC = [112, 136, 145];
+    const POOL_WAT = [95, 175, 228], HOT_STM = 'rgba(235,244,248,1)', COND_WAT = 'rgba(111,180,238,1)';
+    const VALVE_OPEN = [60, 190, 125], VALVE_CLOSED = [58, 74, 82];
+
+    // Reactor building roof slab & containment head
+    sc.box(-11, 16.0, -7, 11, 17.5, 7, CONC);
+    sc.cyl([0, 13.5, 0], 'y', 5.5, 5.5, 3.0, STEEL, { a: 0.25, seg: 24, tag: 'v_stm' });
+
+    // Reinforced concrete IC Pool
+    sc.box(-8.5, 17.5, -4.8, 8.5, 27.5, 4.8, [180, 195, 202], { a: 0.25, shell: true, tag: 'pool' });
+    sc.box(-8.2, 17.6, -4.5, 8.2, 26.2, 4.5, POOL_WAT, { a: 0.45, tag: 'pool' });
+
+    // Boiling bubbles in pool when active
+    if (open && q > 0 && !still) {
+      for (let i = 0; i < 28; i++) {
+        const ph = ((t * 1.5 + i * 0.12) % 1);
+        const bx = -6 + (i * 3.3 % 12), bz = -3 + (i * 2.1 % 6);
+        sc.bubble(bx, 19.5 + ph * 6.5, bz, 0.09, 0.75 * (1 - ph * 0.15), 'rgba(255,255,255,0.85)');
+      }
+    }
+
+    // Atmospheric Steam Vents & Plumes
+    [-5, -2, 2, 5].forEach(x => {
+      sc.box(x - 0.8, 27.5, -1.6, x + 0.8, 30.5, 1.6, [130, 150, 160], { a: 0.7, tag: 'vent' });
+    });
+    if (open && q > 0 && !still) {
+      [-5, -2, 2, 5].forEach((x, i) => {
+        const ph = ((t * 0.8 + i * 0.25) % 1);
+        sc.bubble(x, 30.5 + ph * 3.5, 0, 0.35 + ph * 0.6, 0.6 * (1 - ph), 'rgba(255,255,255,0.7)');
+      });
+    }
+
+    // 3 Independent Heat Exchanger Trains (A, B, C)
+    [-3.0, 0, 3.0].forEach(zb => {
+      // Upper steam header drum
+      sc.cyl([-6.5, 25.2, zb], 'x', 0.45, 0.45, 11.5, STEEL, { seg: 10, tag: 'tubes' });
+      // Lower condensate header drum
+      sc.cyl([-6.5, 19.5, zb], 'x', 0.45, 0.45, 11.5, STEEL, { seg: 10, tag: 'tubes' });
+      // Sloped condensation tubes
+      for (let i = 0; i < 12; i++) {
+        const x = -5.8 + i * 1.05;
+        sc.cyl([x, 19.5, zb], 'y', 0.08, 0.08, 5.7, [130, 148, 156], { seg: 6, tag: 'tubes' });
+        sc.fline([[x, 25.0, zb], [x, 19.7, zb]], icF, COND_WAT, 1.8);
+      }
+      sc.fline([[-6.5, 25.2, zb], [5.0, 25.2, zb]], icF, HOT_STM, 2.2);
+      sc.fline([[-6.5, 19.5, zb], [5.0, 19.5, zb]], icF, COND_WAT, 2.2);
+    });
+
+    // Steam Supply Piping from RPV
+    sc.pipe([[-1.5, 11.0, -1.5], [-1.5, 17.5, -1.5], [-8.0, 17.5, -1.5], [-8.0, 25.2, 0]], 0.35, PIPEC, { f: icF, color: HOT_STM });
+    sc.box(-1.9, 13.5, -1.9, -1.1, 14.7, -1.1, open ? VALVE_OPEN : VALVE_CLOSED, { tag: 'v_stm' });
+    sc.pipe([[-8.0, 25.2, -3.0], [-8.0, 25.2, 3.0]], 0.28, PIPEC, { f: icF, color: HOT_STM });
+
+    // Condensate Return Piping & Fail-Safe Valves
+    sc.pipe([[5.5, 19.5, -3.0], [5.5, 19.5, 3.0]], 0.28, PIPEC, { f: icF, color: COND_WAT });
+    sc.pipe([[5.5, 19.5, 0], [7.5, 19.5, 0], [7.5, 17.5, 0], [1.5, 17.5, 1.5], [1.5, 11.0, 1.5]], 0.32, PIPEC, { f: icF, color: COND_WAT });
+    sc.box(7.0, 18.0, -0.9, 8.0, 19.2, -0.1, open ? VALVE_OPEN : VALVE_CLOSED, { tag: 'v_ret' });
+    sc.box(7.0, 18.0, 0.1, 8.0, 19.2, 0.9, open ? VALVE_OPEN : VALVE_CLOSED, { tag: 'v_ret' });
+
+    // Miniature RPV representation below roof
+    sc.cyl([0, 6.0, 0], 'y', 2.2, 2.2, 5.0, STEEL, { a: 0.3, seg: 18, tag: 'decay' });
+    sc.cyl([0, 6.0, 0], 'y', 2.0, 2.0, 4.8 * clamp(S.level / 100, 0.1, 1), [63, 155, 224], { a: 0.4, seg: 18, tag: 'decay' });
+    sc.box(-1.0, 6.5, -1.0, 1.0, 8.0, 1.0, [216, 87, 28], { a: 0.85, tag: 'decay' });
+
+    // Callout Labels
+    sc.lab('ATMOSPHERIC STEAM EXHAUST VENTS', -2.0, 31.0, 0, 'L', 'vent');
+    sc.lab('ROOF IC WATER POOL (OPEN TO AIR)', -8.2, 26.5, 0, 'L', 'pool');
+    sc.lab('UPPER STEAM MANIFOLD DRUMS', -6.5, 25.2, -3.0, 'L', 'tubes');
+    sc.lab('STEAM SUPPLY PIPE FROM RPV', -8.0, 22.0, -1.5, 'L', 'v_stm');
+    sc.lab('CONTAINMENT ISOLATION VALVE', -1.5, 14.1, -1.5, 'L', 'v_stm');
+    sc.lab('REACTOR VESSEL DECAY HEAT', -1.5, 8.5, 0, 'L', 'decay');
+
+    sc.lab('BOILING STEAM PLUMES', 2.0, 31.0, 0, 'R', 'vent');
+    sc.lab('3 PASSIVE SAFETY TRAINS (A, B, C)', 0, 24.0, 3.0, 'R', 'trains');
+    sc.lab('SUBMERGED TUBE BUNDLES', 0, 22.0, 0, 'R', 'tubes');
+    sc.lab('LOWER CONDENSATE RETURN DRUMS', 5.5, 19.5, 3.0, 'R', 'tubes');
+    sc.lab('FAIL-SAFE RETURN ISOLATION VALVES', 7.5, 18.6, 0.5, 'R', 'v_ret');
+    sc.lab('GRAVITY CONDENSATE DRAIN LINE', 1.5, 13.5, 1.5, 'R', 'gravity');
+
+    sc.finish();
+  }
+
+  const IPRE = { whole: [24.0, 22.0], pool: [26.0, 14.0], tubes: [23.0, 12.0], valves: [19.0, 13.0] };
+  const ICARDS = [
+    ['pool', 'Roof isolation condenser pool', 'pool', (S, icE) => `${((icE || 0) / 2.257 / 1000).toFixed(1)} t boiled off, >7 days reserve`, 'Large open-to-atmosphere reinforced concrete pool located on the reactor building roof above containment. Filled with roughly 500-600 tonnes of water, providing an immense passive heat sink capable of absorbing full decay heat for at least 7 days without AC power or operator action.'],
+    ['trains', 'Three passive safety trains', 'tubes', S => S.icOpen ? `3 trains in service, ${S.qic.toFixed(0)} MWt heat transfer` : '3 trains in standby', 'BWRX-300 incorporates three independent 50% capacity passive condenser trains submerged in the pool. Any two trains provide 100% of required decay heat removal capacity, meeting strict N+1 single-failure safety redundancy criteria.'],
+    ['tubes', 'Submerged tube bundles', 'tubes', S => S.icOpen ? `condensing ${(S.qic * 1000 / 2200).toFixed(1)} kg/s, boiling pool outside` : 'valves closed, tubes at rest', 'Sloped corrosion-resistant ASME Class 1 tube bundles submerged in the cool pool water. High-pressure steam inside the tubes condenses on internal surfaces, releasing latent heat directly through tube walls to boil pool water at atmospheric pressure (~100 °C).'],
+    ['v_ret', 'Fail-safe return valves', 'valves', S => `return valves ${S.icOpen ? 'OPEN (gravity draining)' : 'CLOSED (fail-open DC ready)'}`, 'Two parallel fail-safe nitrogen-actuated valves on the lower drain line. Designed to fail open on loss of station AC power or DC actuation signal. When opened, dense condensate immediately drains into RPV downcomer by gravity, initiating natural loop circulation.'],
+    ['v_stm', 'Steam supply & isolation valves', 'valves', S => `supply: ${S.p.toFixed(2)} MPa, containment isolation OPEN`, 'Large steam pipes draw saturated steam directly from vessel steam dome through dual containment isolation valves welded directly to the RPV nozzles. Upper supply line remains flooded with steam in standby, ready for instantaneous heat transfer.'],
+    ['vent', 'Atmospheric steam vents', 'pool', S => S.icOpen && S.qic > 1 ? 'venting clean boil-off steam to atmosphere' : 'standby, no boil-off', 'Large exhaust ducts above the pool route evaporated steam directly through reactor building roof vents to atmosphere. Because pool water is physically isolated from primary reactor coolant by the tube walls, the vented steam is completely clean and non-radioactive.'],
+    ['gravity', 'Natural circulation gravity loop', 'valves', S => S.icOpen ? '20 m elevation head, zero AC power or pumps' : 'passive loop standing by', 'Because the IC pool is perched 20 meters above the reactor core, condensed water in the return leg is much denser than the rising steam in the supply leg. This hydrostatic density difference creates a strong, self-sustaining gravity siphon loop without a single pump or moving part.'],
+    ['decay', 'Decay heat & pressure control', 'whole', S => `decay heat ${(S.h * C.MWT).toFixed(1)} MWt, RPV ${S.p.toFixed(2)} MPa (${S.Tc.toFixed(0)} °C)`, 'During station blackout (SBO) or loss of feedwater, the IC rapidly cools and depressurizes the reactor vessel below relief valve setpoints, preventing core uncovery and containment pressurization indefinitely without needing emergency diesel generators.']
+  ];
+
   root.BWR_Views = {
     renderTurbine, renderCondenser, renderIC,
-    p3Rpv, RPRE, RCARDS, P3RT
+    p3Rpv, RPRE, RCARDS, P3RT,
+    p3Turbine, TPRE, TCARDS,
+    p3Condenser, CPRE, CCARDS,
+    p3IC, IPRE, ICARDS
   };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -179,104 +179,186 @@
     });
   }
 
-  // RPV 3D Cutaway controls
-  const rcam = { yaw: -0.5, pitch: 0.35, cy: 7.6, span: 27.8, tcy: 7.6, tspan: 27.8, sel: null, labels: true, cut: true };
+  // 3D View Configurations for all plant rooms
   const p3still = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
 
-  function rGo(p) {
-    if (V.RPRE[p]) {
-      rcam.tcy = V.RPRE[p][0];
-      rcam.tspan = V.RPRE[p][1];
+  const viewConfigs = {
+    rpv: {
+      cvId: 'rc',
+      cardsId: 'rcards',
+      cardsData: V.RCARDS,
+      presets: V.RPRE,
+      presetBtns: [['rWhole', 'whole'], ['rCore', 'core'], ['rTop', 'top'], ['rBot', 'bot']],
+      btnL: 'rL', btnR: 'rR', btnCut: 'rCut', btnLab: 'rLab',
+      cam: { yaw: -0.5, pitch: 0.35, cy: 7.6, span: 27.8, tcy: 7.6, tspan: 27.8, sel: null, labels: true, cut: true, isSchem: false },
+      draw3D: (ctx, W, H, dpr, t, cam) => V.p3Rpv(ctx, W, H, dpr, t, S, C, (window.BWR_3D && window.BWR_3D.coreColor), cam, p3still)
+    },
+    turb: {
+      cvId: 'tc',
+      svgId: 'tsvg',
+      cardsId: 'tcards',
+      cardsData: V.TCARDS,
+      presets: V.TPRE,
+      presetBtns: [['tWhole', 'whole'], ['tHp', 'hp'], ['tMsr', 'msr'], ['tGen', 'gen']],
+      btnL: 'tL', btnR: 'tR', btnCut: 'tCut', btnLab: 'tLab', btnSchem: 'tSchem',
+      cam: { yaw: -0.6, pitch: 0.35, cy: 7.5, span: 26.0, tcy: 7.5, tspan: 26.0, sel: null, labels: true, cut: true, isSchem: false },
+      draw3D: (ctx, W, H, dpr, t, cam) => V.p3Turbine(ctx, W, H, dpr, t, S, C, cam, p3still),
+      draw2D: () => V.renderTurbine(S, document)
+    },
+    cond: {
+      cvId: 'cc',
+      svgId: 'csvg',
+      cardsId: 'ccards',
+      cardsData: V.CCARDS,
+      presets: V.CPRE,
+      presetBtns: [['cWhole', 'whole'], ['cTubes', 'tubes'], ['cHot', 'hotwell'], ['cCw', 'cw']],
+      btnL: 'cL', btnR: 'cR', btnCut: 'cCut', btnLab: 'cLab', btnSchem: 'cSchem',
+      cam: { yaw: -0.55, pitch: 0.35, cy: 3.5, span: 20.0, tcy: 3.5, tspan: 20.0, sel: null, labels: true, cut: true, isSchem: false },
+      draw3D: (ctx, W, H, dpr, t, cam) => V.p3Condenser(ctx, W, H, dpr, t, S, C, cam, p3still),
+      draw2D: () => V.renderCondenser(S, document)
+    },
+    ic: {
+      cvId: 'ic_c',
+      svgId: 'isvg',
+      cardsId: 'iccards',
+      cardsData: V.ICARDS,
+      presets: V.IPRE,
+      presetBtns: [['iWhole', 'whole'], ['iPool', 'pool'], ['iTubes', 'tubes'], ['iValves', 'valves']],
+      btnL: 'iL', btnR: 'iR', btnCut: 'iCut', btnLab: 'iLab', btnSchem: 'iSchem',
+      cam: { yaw: -0.55, pitch: 0.35, cy: 24.0, span: 22.0, tcy: 24.0, tspan: 22.0, sel: null, labels: true, cut: true, isSchem: false },
+      draw3D: (ctx, W, H, dpr, t, cam) => V.p3IC(ctx, W, H, dpr, t, S, C, cam, p3still, icE),
+      draw2D: () => V.renderIC(S, icE, document)
     }
-  }
+  };
 
-  function initRpvCards() {
-    const container = document.getElementById('rcards');
-    if (!container || container.children.length > 0) return;
+  function initCards(cfg) {
+    const container = document.getElementById(cfg.cardsId);
+    if (!container || container.children.length > 0 || !cfg.cardsData) return;
 
-    V.RCARDS.forEach(c => {
+    cfg.cardsData.forEach(c => {
       const b = document.createElement('button');
       b.className = 'rcard';
       b.type = 'button';
       b.setAttribute('aria-pressed', 'false');
       const t = document.createElement('b'); t.textContent = c[1];
-      const v = document.createElement('span'); v.className = 'v'; v.id = 'rcard_v_' + c[0];
+      const v = document.createElement('span'); v.className = 'v'; v.id = `${cfg.cardsId}_v_${c[0]}`;
       const x = document.createElement('span'); x.textContent = c[4];
       b.appendChild(t); b.appendChild(v); b.appendChild(x);
       container.appendChild(b);
 
       b.addEventListener('click', () => {
-        rcam.sel = rcam.sel === c[0] ? null : c[0];
+        cfg.cam.sel = cfg.cam.sel === c[0] ? null : c[0];
         container.querySelectorAll('.rcard').forEach((el, idx) => {
-          el.setAttribute('aria-pressed', V.RCARDS[idx][0] === rcam.sel ? 'true' : 'false');
+          el.setAttribute('aria-pressed', cfg.cardsData[idx][0] === cfg.cam.sel ? 'true' : 'false');
         });
-        if (rcam.sel) rGo(c[2]);
+        if (cfg.cam.sel && cfg.presets && cfg.presets[c[2]]) {
+          cfg.cam.tcy = cfg.presets[c[2]][0];
+          cfg.cam.tspan = cfg.presets[c[2]][1];
+        }
       });
     });
   }
 
-  function initRpvCanvas() {
-    const cv = document.getElementById('rc');
+  function initCanvas(cfg) {
+    const cv = document.getElementById(cfg.cvId);
     if (!cv) return;
     let drag = null;
 
     cv.addEventListener('pointerdown', e => {
-      drag = { x: e.clientX, y: e.clientY, yaw: rcam.yaw, pitch: rcam.pitch };
+      drag = { x: e.clientX, y: e.clientY, yaw: cfg.cam.yaw, pitch: cfg.cam.pitch };
       try { cv.setPointerCapture(e.pointerId); } catch (x) {}
     });
     cv.addEventListener('pointermove', e => {
       if (!drag) return;
       const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
-      rcam.yaw = drag.yaw + dx * 0.008;
-      if (e.pointerType === 'mouse') rcam.pitch = clamp(drag.pitch + dy * 0.006, 0.05, 1.2);
+      cfg.cam.yaw = drag.yaw + dx * 0.008;
+      if (e.pointerType === 'mouse') cfg.cam.pitch = clamp(drag.pitch + dy * 0.006, 0.05, 1.2);
     });
     ['pointerup', 'pointercancel'].forEach(ev => cv.addEventListener(ev, () => { drag = null; }));
 
-    const rL = document.getElementById('rL'); if (rL) rL.addEventListener('click', () => { rcam.yaw -= 0.3; });
-    const rR = document.getElementById('rR'); if (rR) rR.addEventListener('click', () => { rcam.yaw += 0.3; });
+    const btnL = document.getElementById(cfg.btnL);
+    if (btnL) btnL.addEventListener('click', () => { cfg.cam.yaw -= 0.3; });
 
-    [['rWhole', 'whole'], ['rCore', 'core'], ['rTop', 'top'], ['rBot', 'bot']].forEach(a => {
-      const btn = document.getElementById(a[0]);
-      if (btn) btn.addEventListener('click', () => rGo(a[1]));
-    });
+    const btnR = document.getElementById(cfg.btnR);
+    if (btnR) btnR.addEventListener('click', () => { cfg.cam.yaw += 0.3; });
 
-    const rCut = document.getElementById('rCut');
-    if (rCut) rCut.addEventListener('click', () => {
-      rcam.cut = !rcam.cut;
-      rCut.setAttribute('aria-pressed', rcam.cut ? 'true' : 'false');
-    });
-
-    const rLab = document.getElementById('rLab');
-    if (rLab) rLab.addEventListener('click', () => {
-      rcam.labels = !rcam.labels;
-      rLab.setAttribute('aria-pressed', rcam.labels ? 'true' : 'false');
-    });
-  }
-
-  function drawRpv() {
-    const cv = document.getElementById('rc');
-    if (!cv) return;
-    const parent = cv.parentElement;
-    const W = Math.max(320, Math.round(parent.clientWidth));
-    const H = Math.max(260, Math.round(parent.clientHeight));
-    const dpr = Math.min(2, window.devicePixelRatio || 1);
-
-    if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) {
-      cv.width = Math.round(W * dpr);
-      cv.height = Math.round(H * dpr);
-      cv.style.height = H + 'px';
+    if (cfg.presetBtns) {
+      cfg.presetBtns.forEach(a => {
+        const btn = document.getElementById(a[0]);
+        if (btn) btn.addEventListener('click', () => {
+          if (cfg.presets && cfg.presets[a[1]]) {
+            cfg.cam.tcy = cfg.presets[a[1]][0];
+            cfg.cam.tspan = cfg.presets[a[1]][1];
+          }
+        });
+      });
     }
 
-    rcam.cy += (rcam.tcy - rcam.cy) * 0.18;
-    rcam.span += (rcam.tspan - rcam.span) * 0.18;
-
-    V.p3Rpv(cv.getContext('2d'), W, H, dpr, performance.now() / 1000, S, C, (window.BWR_3D && window.BWR_3D.coreColor), rcam, p3still);
-
-    // Update cards values
-    V.RCARDS.forEach(c => {
-      const el = document.getElementById('rcard_v_' + c[0]);
-      if (el) el.textContent = c[3](S, S.tripT || 0);
+    const btnCut = document.getElementById(cfg.btnCut);
+    if (btnCut) btnCut.addEventListener('click', () => {
+      cfg.cam.cut = !cfg.cam.cut;
+      btnCut.setAttribute('aria-pressed', cfg.cam.cut ? 'true' : 'false');
     });
+
+    const btnLab = document.getElementById(cfg.btnLab);
+    if (btnLab) btnLab.addEventListener('click', () => {
+      cfg.cam.labels = !cfg.cam.labels;
+      btnLab.setAttribute('aria-pressed', cfg.cam.labels ? 'true' : 'false');
+    });
+
+    if (cfg.btnSchem && cfg.svgId) {
+      const btnSchem = document.getElementById(cfg.btnSchem);
+      const svgEl = document.getElementById(cfg.svgId);
+      if (btnSchem && svgEl) {
+        btnSchem.addEventListener('click', () => {
+          cfg.cam.isSchem = !cfg.cam.isSchem;
+          btnSchem.setAttribute('aria-pressed', cfg.cam.isSchem ? 'true' : 'false');
+          btnSchem.textContent = cfg.cam.isSchem ? '3D Cutaway' : 'Schematic';
+          if (cfg.cam.isSchem) {
+            cv.style.display = 'none';
+            svgEl.style.display = 'block';
+          } else {
+            cv.style.display = 'block';
+            svgEl.style.display = 'none';
+          }
+        });
+      }
+    }
+  }
+
+  function drawView(key) {
+    const cfg = viewConfigs[key];
+    if (!cfg) return;
+
+    if (cfg.cam.isSchem) {
+      if (cfg.draw2D) cfg.draw2D();
+    } else {
+      const cv = document.getElementById(cfg.cvId);
+      if (!cv) return;
+      const parent = cv.parentElement;
+      const W = Math.max(320, Math.round(parent.clientWidth));
+      const H = Math.max(260, Math.round(parent.clientHeight));
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+
+      if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) {
+        cv.width = Math.round(W * dpr);
+        cv.height = Math.round(H * dpr);
+        cv.style.height = H + 'px';
+      }
+
+      cfg.cam.cy += (cfg.cam.tcy - cfg.cam.cy) * 0.18;
+      cfg.cam.span += (cfg.cam.tspan - cfg.cam.span) * 0.18;
+
+      cfg.draw3D(cv.getContext('2d'), W, H, dpr, performance.now() / 1000, cfg.cam);
+    }
+
+    // Update live values on cards
+    if (cfg.cardsData) {
+      cfg.cardsData.forEach(c => {
+        const el = document.getElementById(`${cfg.cardsId}_v_${c[0]}`);
+        if (el) el.textContent = c[3](S, (key === 'rpv' ? (S.tripT || 0) : (key === 'ic' ? icE : 0)));
+      });
+    }
   }
 
   // Live Telemetry Banner (Aligned with Notes for Software Design Specs)
@@ -326,22 +408,16 @@
     checkState();
     if (S) {
       updateTelemetryBanner();
-      if (currentPart === 'rpv') {
-        drawRpv();
-      } else if (currentPart === 'turb') {
-        V.renderTurbine(S, document);
-      } else if (currentPart === 'cond') {
-        V.renderCondenser(S, document);
-      } else if (currentPart === 'ic') {
-        V.renderIC(S, icE, document);
-      }
+      drawView(currentPart);
     }
     requestAnimationFrame(loop);
   }
 
   // Startup
+  Object.keys(viewConfigs).forEach(k => {
+    initCards(viewConfigs[k]);
+    initCanvas(viewConfigs[k]);
+  });
   switchPart(currentPart);
-  initRpvCards();
-  initRpvCanvas();
   requestAnimationFrame(loop);
 })();

@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/detail.css?v=4">
+  <link rel="stylesheet" href="css/detail.css?v=5">
 </head>
 <body>
   <!-- Common SVG Gradients & Definitions -->
@@ -108,10 +108,22 @@
       <!-- 2. Turbine Hall View -->
       <section id="tview" class="view-container" hidden>
         <div class="vbar">
-          <span class="lab">Turbine hall · high/low-pressure turbines, generator, bypass & moisture separator reheater</span>
+          <span class="lab">Turbine hall · 3D schematic & multi-stage turbo-generator</span>
+          <div class="p3bar" style="margin-left:auto; background:transparent; border:none; padding:0;">
+            <button class="act" type="button" id="tL" aria-label="Rotate left">&#9664;</button>
+            <button class="act" type="button" id="tR" aria-label="Rotate right">&#9654;</button>
+            <button class="act" type="button" id="tWhole">Whole train</button>
+            <button class="act" type="button" id="tHp">HP & gov</button>
+            <button class="act" type="button" id="tMsr">MSR & LP</button>
+            <button class="act" type="button" id="tGen">Generator & exc</button>
+            <button class="opt" type="button" id="tCut" aria-pressed="true">Cutaway</button>
+            <button class="opt" type="button" id="tLab" aria-pressed="true">Labels</button>
+            <button class="opt" type="button" id="tSchem">Schematic</button>
+          </div>
         </div>
         <div class="visual-area">
-          <svg id="tsvg" viewBox="0 0 700 484" role="img" aria-label="Live turbine hall">
+          <canvas id="tc" tabindex="0" role="img" aria-label="Rotatable cutaway 3D schematic of the turbine hall"></canvas>
+          <svg id="tsvg" viewBox="0 0 700 484" role="img" aria-label="Live turbine hall" style="display:none">
             <line x1="0" x2="700" y1="272" y2="272" stroke="#9fb3ba" stroke-width="2" stroke-dasharray="2 6"/>
             <text class="txt" x="8" y="266">TURBINE DECK</text><text class="txt" x="8" y="288">CONDENSER LEVEL</text>
             <path class="pipe" d="M20,60 H197 V190"/><path class="pipe" d="M130,60 V335 H240"/>
@@ -197,16 +209,28 @@
             <text id="tvVac" class="txt" x="244" y="398" style="fill:var(--ink)"></text><text id="tvDT" class="txt" x="484" y="324"></text>
           </svg>
         </div>
-        <div class="tsteps" id="tsteps"></div>
+        <div class="rcards" id="tcards"></div>
       </section>
 
       <!-- 3. Condenser Room View -->
       <section id="cview" class="view-container" hidden>
         <div class="vbar">
-          <span class="lab">Condenser room · once-through cooling from Lake Ontario at Darlington</span>
+          <span class="lab">Condenser room · 3D cutaway schematic, vacuum shell & lake cooling</span>
+          <div class="p3bar" style="margin-left:auto; background:transparent; border:none; padding:0;">
+            <button class="act" type="button" id="cL" aria-label="Rotate left">&#9664;</button>
+            <button class="act" type="button" id="cR" aria-label="Rotate right">&#9654;</button>
+            <button class="act" type="button" id="cWhole">Overview</button>
+            <button class="act" type="button" id="cTubes">Tubes & shell</button>
+            <button class="act" type="button" id="cHot">Hotwell & pumps</button>
+            <button class="act" type="button" id="cCw">CW & lake intake</button>
+            <button class="opt" type="button" id="cCut" aria-pressed="true">Cutaway</button>
+            <button class="opt" type="button" id="cLab" aria-pressed="true">Labels</button>
+            <button class="opt" type="button" id="cSchem">Schematic</button>
+          </div>
         </div>
         <div class="visual-area">
-          <svg id="csvg" viewBox="0 0 700 484" role="img" aria-label="Live condenser room">
+          <canvas id="cc" tabindex="0" role="img" aria-label="Rotatable cutaway 3D schematic of the condenser room"></canvas>
+          <svg id="csvg" viewBox="0 0 700 484" role="img" aria-label="Live condenser room" style="display:none">
             <rect x="0" y="440" width="700" height="44" fill="#bcdcf0"/>
             <path d="M0,448 q15,-8 30,0 t30,0 t30,0 t30,0 t30,0 t30,0 t30,0 t30,0 t30,0 t30,0 t30,0 t30,0 t30,0 t30,0 t30,0 t30,0 t30,0 t30,0 t30,0 t30,0 t30,0 t30,0 t30,0" fill="none" stroke="#6fa6cf" stroke-width="2"/>
             <text class="txt" x="350" y="468" text-anchor="middle" style="fill:#0b3a60">LAKE ONTARIO</text>
@@ -286,16 +310,28 @@
             <text id="cvCond" class="tag" x="420" y="350"></text>
           </svg>
         </div>
-        <div class="tsteps" id="csteps"></div>
+        <div class="rcards" id="ccards"></div>
       </section>
 
       <!-- 4. Isolation Condenser (IC) View -->
       <section id="iview" class="view-container" hidden>
         <div class="vbar">
-          <span class="lab">Isolation condenser room · passive safety decay heat removal on reactor building roof</span>
+          <span class="lab">Isolation condenser · 3D cutaway schematic, roof pool & passive cooling</span>
+          <div class="p3bar" style="margin-left:auto; background:transparent; border:none; padding:0;">
+            <button class="act" type="button" id="iL" aria-label="Rotate left">&#9664;</button>
+            <button class="act" type="button" id="iR" aria-label="Rotate right">&#9654;</button>
+            <button class="act" type="button" id="iWhole">Overview</button>
+            <button class="act" type="button" id="iPool">Pool & vents</button>
+            <button class="act" type="button" id="iTubes">Tube bundles</button>
+            <button class="act" type="button" id="iValves">Valves & piping</button>
+            <button class="opt" type="button" id="iCut" aria-pressed="true">Cutaway</button>
+            <button class="opt" type="button" id="iLab" aria-pressed="true">Labels</button>
+            <button class="opt" type="button" id="iSchem">Schematic</button>
+          </div>
         </div>
         <div class="visual-area">
-          <svg id="isvg" viewBox="0 0 700 484" role="img" aria-label="Live isolation condenser room">
+          <canvas id="ic_c" tabindex="0" role="img" aria-label="Rotatable cutaway 3D schematic of the isolation condenser"></canvas>
+          <svg id="isvg" viewBox="0 0 700 484" role="img" aria-label="Live isolation condenser room" style="display:none">
             <text class="txt" x="360" y="14" text-anchor="middle">VENTED TO THE ATMOSPHERE</text>
             <g id="iPlume" style="opacity:0">
               <circle class="puff" cx="300" cy="98" r="9" style="animation-delay:0s"/>
@@ -353,14 +389,14 @@
             <text id="cicRpv" class="tag" x="182" y="378"></text><text id="cicLvl" class="txt" x="182" y="394"></text><text id="cicDk" class="txt" x="182" y="408"></text>
           </svg>
         </div>
-        <div class="tsteps" id="isteps"></div>
+        <div class="rcards" id="iccards"></div>
       </section>
     </main>
   </div>
 
-  <script src="js/model.js?v=2"></script>
-  <script src="js/renderer3d.js?v=2"></script>
-  <script src="js/views.js?v=2"></script>
+  <script src="js/model.js?v=5"></script>
+  <script src="js/renderer3d.js?v=5"></script>
+  <script src="js/views.js?v=5"></script>
   <script>
     // Initialize IC tube bundle lines in SVG
     const itubes = document.getElementById('itubes');
@@ -369,6 +405,6 @@
         + Array.from({ length: 14 }, (_, i) => `<path id="iT${i}" class="flow" d="M${206 + i * 24},136 V236" stroke="#dce9ec" stroke-width="1.8"/>`).join('');
     }
   </script>
-  <script src="js/detail.js?v=2"></script>
+  <script src="js/detail.js?v=5"></script>
 </body>
 </html>
